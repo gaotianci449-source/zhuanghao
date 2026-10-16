@@ -25,10 +25,14 @@
   </div>
   <div class="ch" id="ch" aria-live="polite">—</div>
   <div class="off" id="off" data-t="导入路段后，这里显示你所在的桩号">导入路段后，这里显示你所在的桩号</div>
+  <div class="near" id="near" hidden></div>
 </header>
 
 <div class="stage">
   <main id="map" data-t-label="地图" aria-label="地图"></main>
+  <button class="fab camera" id="camera" type="button" title="拍照加水印" data-t-label="拍照加水印">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+  </button>
   <button class="locate" id="locate" type="button" aria-pressed="false" title="定位并跟随" data-t-label="定位并跟随">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8" fill="none"/></svg>
   </button>
@@ -80,6 +84,7 @@
 <div class="toast" id="toast" role="status" hidden></div>
 <input type="file" id="fileRoad" hidden>
 <input type="file" id="fileBackup" hidden>
+<input type="file" id="filePhoto" accept="image/*" capture="environment" hidden>
 
 <script src="vendor/leaflet.js"></script>
 <script type="module" src="js/app.js"></script>

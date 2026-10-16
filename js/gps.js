@@ -91,6 +91,9 @@ export function update() {
   const ch = $("ch"), off = $("off");
   ch.className = "ch";
   showAcc();
+  // 附近地标：“拌合站 东北 320 米”
+  const nt = S.me ? hooks.nearText(S.me.lat, S.me.lon) : "";
+  $("near").hidden = !nt; $("near").textContent = nt;
   if (!S.roads.length) {
     setChip(null, T("还没有路段")); ch.textContent = "—"; ch.classList.add("dim");
     off.textContent = T("点下方“路段”，导入 KML、Excel 或坐标文件");

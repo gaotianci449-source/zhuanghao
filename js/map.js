@@ -25,11 +25,25 @@ export function setBase(k) {
 }
 setBase(S.base);
 
+// 路网和地名（Esri 透明叠加层），叠在影像上面，效果类似奥维的“混合图”
+map.createPane("refPane").style.zIndex = 250;
+const refLayers = L.layerGroup([
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", { pane: "refPane", maxNativeZoom: 19, maxZoom: 20 }),
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { pane: "refPane", maxNativeZoom: 19, maxZoom: 20 }),
+]);
+export function setRef(on) {
+  prefs.set("ref", on);
+  if (on && !map.hasLayer(refLayers)) refLayers.addTo(map);
+  if (!on && map.hasLayer(refLayers)) map.removeLayer(refLayers);
+}
+setRef(prefs.get("ref", true));
+
 export const overlayLayer = L.layerGroup().addTo(map);  // 已保存的轨迹、测量图形
 export const roadLayer = L.layerGroup().addTo(map);
 export const labelLayer = L.layerGroup().addTo(map);
 export const previewLayer = L.layerGroup().addTo(map);
 export const liveLayer = L.layerGroup().addTo(map);     // 正在记录的轨迹、正在测量的图形
+export const markLayer = L.layerGroup().addTo(map);     // 地标
 export const findLayer = L.layerGroup().addTo(map);
 
 map.on("moveend", () => {

@@ -1,12 +1,12 @@
-// 数据保存在本机浏览器（IndexedDB），不上传：路段、轨迹、测量图形
+// 数据保存在本机浏览器（IndexedDB）：路段、轨迹、测量图形、地标，以及共享数据的缓存
 const DB = "zhuanghao";
-const STORES = ["roads", "tracks", "shapes"];
+const STORES = ["roads", "tracks", "shapes", "marks", "meta"];
 let dbp = null;
 
 function open() {
   if (dbp) return dbp;
   dbp = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 2);
+    const req = indexedDB.open(DB, 3);
     req.onupgradeneeded = () => {
       const db = req.result;
       for (const s of STORES) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: "id" });
@@ -38,6 +38,14 @@ function table(name) {
 export const store = table("roads");
 export const tracksDB = table("tracks");
 export const shapesDB = table("shapes");
+export const marksDB = table("marks");
+// 杂项：共享数据缓存、未发布的草稿 { id, value }
+const metaT = table("meta");
+export const meta = {
+  get: (id) => tx("meta", "readonly", (s) => s.get(id)).then((r) => (r ? r.value : undefined)),
+  set: (id, value) => metaT.put({ id, value }),
+  remove: (id) => metaT.remove(id),
+};
 
 export const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 

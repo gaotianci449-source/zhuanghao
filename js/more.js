@@ -6,13 +6,23 @@ import { $, openSheet, closeSheet, toast } from "./ui.js";
 import { exportBackup } from "./backup.js";
 import { plainRoad } from "./roads.js";
 import { T, lang, setLang } from "./i18n.js";
+import { setRef } from "./map.js";
+import { sheetAdmin, sharedStatus } from "./admin.js";
+
+export function setSimple(on) {
+  prefs.set("simple", on);
+  document.body.classList.toggle("simple", on);
+}
 
 export function sheetMore() {
   const body = openSheet(T("更多"), `
+    <div class="result ok"><p>${sharedStatus()}</p></div>
+    <label class="check big"><input type="checkbox" id="mSimple" ${prefs.get("simple", false) ? "checked" : ""}> ${T("简单模式：字更大，只留常用按钮")}</label>
     <div class="field"><span>${T("底图")}</span>
       <div class="seg" role="radiogroup">
         ${[["esri", "卫星影像"], ["osm", "道路图"], ["none", "不显示"]].map(([k, t]) => `<button type="button" role="radio" data-base="${k}" aria-checked="${S.base === k}">${T(t)}</button>`).join("")}
       </div>
+      <label class="check"><input type="checkbox" id="mRef" ${prefs.get("ref", true) ? "checked" : ""}> ${T("在影像上显示路网和地名")}</label>
     </div>
     <div class="field"><span>语言 · Langue</span>
       <div class="seg" role="radiogroup">
@@ -23,6 +33,9 @@ export function sheetMore() {
     <label class="field"><span>${T("离中线多远以内才显示桩号")}</span><select id="mMax">
       ${[100, 200, 300, 500, 1000, 2000].map((v) => `<option value="${v}" ${v === S.maxOff ? "selected" : ""}>${v} ${T("米")}</option>`).join("")}
     </select></label>
+    <div class="field"><span>${T("数据管理")}</span>
+      <button class="btn" id="mAdmin">${T("发布共享路段和地标（需要密码）")}</button>
+    </div>
     <div class="field"><span>${T("备份")}</span>
       <div class="row"><button class="btn" id="mExport">${T("导出备份")}</button><button class="btn" id="mImport">${T("恢复备份")}</button></div>
     </div>
@@ -40,6 +53,9 @@ export function sheetMore() {
     setLang(b.dataset.lang);
     location.reload(); // 重新载入，所有文字一次换好
   }));
+  body.querySelector("#mRef").addEventListener("change", (e) => setRef(e.target.checked));
+  body.querySelector("#mSimple").addEventListener("change", (e) => setSimple(e.target.checked));
+  body.querySelector("#mAdmin").addEventListener("click", sheetAdmin);
   body.querySelector("#mMax").addEventListener("change", (e) => { S.maxOff = +e.target.value; prefs.set("maxOff", S.maxOff); hooks.update(); });
   body.querySelector("#mExport").addEventListener("click", () => exportBackup(plainRoad));
   body.querySelector("#mImport").addEventListener("click", () => $("fileBackup").click());

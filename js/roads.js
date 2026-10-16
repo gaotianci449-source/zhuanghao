@@ -1,6 +1,7 @@
-// 路段：列表、显示/隐藏、锁定、改名改色、导入（KML / KMZ / Excel / 坐标文件）
+// 路段：列表、显示/隐藏、锁定、改名改色、导入（KML / KMZ / Excel / 坐标文件 / DXF / DWG）
+// 共享路段由管理员发布，大家只能显示/隐藏，不能改
 import { fromUTM, formatCh, parseCh } from "./geo.js";
-import { Road, buildRoad } from "./road.js";
+import { Road, buildRoad, cumLen, project } from "./road.js";
 import { parseKML, analyzeKML, parseTable, tableStations } from "./importers.js";
 import { store, askPersist, prefs, newId } from "./store.js";
 import { isZip, openZip, readKMZ } from "./zip.js";
@@ -9,11 +10,15 @@ import { S, hooks } from "./state.js";
 import { map, llOf, previewLayer } from "./map.js";
 import { $, esc, toast, openSheet, closeSheet, colorPicker, bindColors, confirmTwice, nextColor, ICON } from "./ui.js";
 import { restoreData } from "./backup.js";
+import { decodeDXF, parseDXF, dxfToKml } from "./dxf.js";
 import { T } from "./i18n.js";
 
 export async function loadRoads() {
   const raw = await store.all();
-  S.roads = raw.map((d) => new Road(d));
+  const hidden = new Set(prefs.get("hidden", []));
+  const shared = (S.shared?.roads || []).map((d) => new Road({ ...d, shared: true, visible: !hidden.has(d.id) }));
+  const ids = new Set(shared.map((r) => r.id));
+  S.roads = [...shared, ...raw.filter((d) => !ids.has(d.id)).map((d) => new Road(d))];
   if (S.lock && !S.roads.some((r) => r.id === S.lock)) { S.lock = null; prefs.set("lock", null); }
   hooks.drawRoads();
   hooks.update();
@@ -23,6 +28,15 @@ export function plainRoad(r) {
   return { id: r.id, name: r.name, color: r.color, visible: r.visible, crs: r.crs, pts: r.pts, cal: r.cal, info: r.info, order: r.order, created: r.created, source: r.source };
 }
 const saveRoad = (r) => store.put(plainRoad(r));
+export async function setVisible(r, v) {
+  r.visible = v;
+  if (r.shared) {
+    const h = new Set(prefs.get("hidden", []));
+    if (v) h.delete(r.id); else h.add(r.id);
+    prefs.set("hidden", [...h]);
+  } else await saveRoad(r);
+}
+const tag = (r) => (r.shared ? ` <span class="tag">${T("共享")}</span>` : "");
 const rangeText = (r) => `<span class="num">${formatCh(r.chMin)}</span> ～ <span class="num">${formatCh(r.chMax)}</span>`;
 const kmText = (m, d = 2) => (m / 1000).toFixed(d) + " " + T("公里");
 
@@ -34,7 +48,7 @@ export function sheetLegend() {
     <div class="list legend" role="radiogroup">
       <div class="lg-row"><button class="choice" role="radio" data-id="" aria-checked="${!S.lock}"><span class="swatch auto"></span>${T("自动选最近的路段")}</button></div>
       ${S.roads.map((r) => `<div class="lg-row" data-id="${r.id}">
-        <button class="choice" role="radio" data-id="${r.id}" aria-checked="${S.lock === r.id}"><span class="swatch line" style="background:${r.color}"></span><span class="meta"><b>${esc(r.name)}</b><small>${rangeText(r)}</small></span></button>
+        <button class="choice" role="radio" data-id="${r.id}" aria-checked="${S.lock === r.id}"><span class="swatch line" style="background:${r.color}"></span><span class="meta"><b>${esc(r.name)}${tag(r)}</b><small>${rangeText(r)}</small></span></button>
         <button class="icon-btn" data-act="toggle" aria-pressed="${r.visible}" aria-label="${T("显示或隐藏")} ${esc(r.name)}">${ICON.eye}</button>
       </div>`).join("")}
     </div>
@@ -42,12 +56,12 @@ export function sheetLegend() {
   body.querySelectorAll(".choice").forEach((b) => b.addEventListener("click", async () => {
     S.lock = b.dataset.id || null; prefs.set("lock", S.lock);
     const r = S.roads.find((x) => x.id === S.lock);
-    if (r && !r.visible) { r.visible = true; await saveRoad(r); hooks.drawRoads(); }
+    if (r && !r.visible) { await setVisible(r, true); hooks.drawRoads(); }
     closeSheet(); hooks.update();
   }));
   body.querySelectorAll("[data-act=toggle]").forEach((btn) => btn.addEventListener("click", async () => {
     const r = S.roads.find((x) => x.id === btn.closest("[data-id]").dataset.id);
-    r.visible = !r.visible; await saveRoad(r);
+    await setVisible(r, !r.visible);
     btn.setAttribute("aria-pressed", r.visible);
     hooks.drawRoads(); hooks.update();
   }));
@@ -60,21 +74,22 @@ export function sheetRoads() {
     ${S.roads.length ? `<ul class="list">${S.roads.map((r) => `
       <li data-id="${r.id}">
         <span class="swatch line" style="background:${r.color}"></span>
-        <div class="meta"><b>${esc(r.name)}</b><small>${rangeText(r)} · ${kmText(r.length)}</small></div>
+        <div class="meta"><b>${esc(r.name)}${tag(r)}</b><small>${rangeText(r)} · ${kmText(r.length)}</small></div>
         <button class="icon-btn" data-act="zoom" aria-label="${T("在地图上查看")} ${esc(r.name)}">${ICON.zoom}</button>
         <button class="icon-btn" data-act="toggle" aria-pressed="${r.visible}" aria-label="${T("显示或隐藏")} ${esc(r.name)}">${ICON.eye}</button>
-        <button class="icon-btn" data-act="edit" aria-label="${T("修改")} ${esc(r.name)}">${ICON.edit}</button>
+        ${r.shared ? "" : `<button class="icon-btn" data-act="edit" aria-label="${T("修改")} ${esc(r.name)}">${ICON.edit}</button>`}
       </li>`).join("")}</ul>`
-      : `<p class="empty">${T("还没有路段。导入测量组的 KML（从奥维导出）、Excel 表格或坐标文件（XYZ / CSV / DAT），就能显示桩号。")}</p>`}
-    <div class="actions"><button class="btn primary" id="btnImport">${T("导入路段")}</button></div>
-    <p class="note">${T("支持 KML、KMZ、Excel（.xlsx），以及每行“桩号、北坐标、东坐标”的坐标文件。数据只保存在这台手机里。")}</p>`);
-  body.querySelector("#btnImport").addEventListener("click", () => $("fileRoad").click());
+      : `<p class="empty">${T("还没有路段。用管理员发的链接打开，就能自动看到共享路段；也可以自己导入 KML、Excel、CAD 图（DXF / DWG）或坐标文件。")}</p>`}
+    <div class="actions"><button class="btn primary" id="btnImport">${T("导入路段")}</button><button class="btn" id="btnMarks">${T("地标")}</button></div>
+    <p class="note">${T("支持 KML、KMZ、Excel（.xlsx）、CAD 图（DXF / DWG），以及每行“桩号、北坐标、东坐标”的坐标文件。自己导入的只保存在这台手机里；标着“共享”的由管理员统一发布。")}</p>`);
+  body.querySelector("#btnImport").addEventListener("click", () => pickRoadFile(null));
+  body.querySelector("#btnMarks").addEventListener("click", () => hooks.sheetMarks());
   body.querySelectorAll("li[data-id]").forEach((li) => {
     const r = S.roads.find((x) => x.id === li.dataset.id);
     li.querySelectorAll("[data-act]").forEach((btn) => btn.addEventListener("click", async () => {
       const act = btn.dataset.act;
       if (act === "zoom") { closeSheet(); hooks.setFollow(false); map.fitBounds(L.latLngBounds(r.ll || r.pts.map(([e, n]) => llOf(r, e, n))), { padding: [30, 30] }); }
-      if (act === "toggle") { r.visible = !r.visible; await saveRoad(r); btn.setAttribute("aria-pressed", r.visible); hooks.drawRoads(); hooks.update(); }
+      if (act === "toggle") { await setVisible(r, !r.visible); btn.setAttribute("aria-pressed", r.visible); hooks.drawRoads(); hooks.update(); }
       if (act === "edit") sheetEditRoad(r);
     }));
   });
@@ -111,6 +126,10 @@ function fail(msg) {
 }
 const startsWith = (buf, sig) => sig.every((b, i) => buf[i] === b);
 
+// 导入到哪里：null = 本机；数据管理里导入时传入一个保存函数（存进共享草稿）
+let sink = null;
+export function pickRoadFile(fn) { sink = fn; $("fileRoad").click(); }
+
 $("fileRoad").addEventListener("change", async (e) => {
   const f = e.target.files[0]; e.target.value = "";
   if (!f) return;
@@ -135,16 +154,21 @@ export async function importFile(f) {
   if (startsWith(buf, [0x25, 0x50, 0x44, 0x46])) throw new Error(T("这是 PDF 文件，里面的坐标读不出来。请找测量组要 Excel 坐标表或 KML。"));
   if (startsWith(buf, [0x89, 0x50, 0x4e, 0x47]) || startsWith(buf, [0xff, 0xd8, 0xff]) || ext === "heic" || ext === "webp")
     throw new Error(T("这是图片，不能导入。请导入 KML、Excel 或坐标文件。"));
-  if (startsWith(buf, [0x41, 0x43, 0x31, 0x30])) throw new Error(T("这是 CAD 图纸（DWG），不能直接读。请让测量组导出坐标表（Excel / CSV）或 KML。"));
+  if (startsWith(buf, [0x41, 0x43, 0x31, 0x30])) {
+    const { dwgToDxf } = await import("./dwg.js");
+    const out = await dwgToDxf(buf, (m) => toast(m, 15000));
+    $("toast").hidden = true;
+    importCAD(out, base); return;
+  }
   if (startsWith(buf, [0x52, 0x61, 0x72, 0x21]) || startsWith(buf, [0x37, 0x7a, 0xbc, 0xaf])) throw new Error(T("这是 RAR / 7z 压缩包，请先解压，再选里面的文件。"));
   if (ext === "ovobj" || ext === "ovkml" || ext === "ovjsn") throw new Error(T("这是奥维自己的格式，读不了。请在奥维里把路段导出成 KML。"));
 
+  if (/^\s*0\s*\r?\n\s*SECTION/.test(new TextDecoder("latin1").decode(buf.subarray(0, 200)))) { importCAD(buf, base); return; }
   const text = decodeText(buf);
   const head = text.slice(0, 3000);
   if (head.includes("\u0000") || (text.match(/�/g) || []).length > 20) throw new Error(T("这个文件不是文字格式，读不了。请导入 KML、Excel 或坐标文件。"));
   if (/^\s*\{/.test(head) && head.includes('"zhuanghao"')) { await restoreData(JSON.parse(text)); return; }
   if (ext === "kml" || /<kml[\s>]/i.test(head)) { importKML(text, base); return; }
-  if (/^\s*0\s*\r?\n\s*SECTION/.test(head)) throw new Error(T("这是 CAD 的 DXF 文件，暂时不能直接读。请让测量组导出坐标表（Excel / CSV）或 KML。"));
   if (/^\s*</.test(head)) throw new Error(T("这个文件是网页或别的 XML 格式，不是 KML。"));
   importTable(text, base, T("坐标文件"));
 }
@@ -176,26 +200,58 @@ function roadSummary(r, extra = "") {
 }
 
 async function saveNew(data, name, color, source) {
-  await store.put({ ...data, id: newId(), name, color, visible: true, order: Date.now(), created: new Date().toISOString(), source });
+  const obj = { ...data, id: newId(), name, color, visible: true, order: Date.now(), created: new Date().toISOString(), source };
+  if (sink) await sink(obj); else await store.put(obj);
   previewLayer.clearLayers();
   await askPersist();
   await loadRoads();
   closeSheet();
-  toast(T("已保存：{name}", { name }));
+  toast(sink ? T("已加入共享（还没发布）：{name}", { name }) : T("已保存：{name}", { name }));
+}
+
+// CAD 图：解析后按 KML 的流程导入；坐标按 UTM，投影带用上次导入坐标文件时选的（默认 28 带）
+function importCAD(bytes, base) {
+  const d = parseDXF(decodeDXF(bytes));
+  const crs = prefs.get("crs", { zone: 28, south: false });
+  importKML(dxfToKml(d, crs), base, new Set(), "CAD 图");
 }
 const freshColor = () => nextColor(S.roads.map((r) => r.color));
 
-function importKML(text, base) {
-  const kml = parseKML(text);
-  const a = analyzeKML(kml);
-  // 默认名称：用最外层文件夹名（奥维导出时就是路段名），去掉 .dxf、-奥维 之类的后缀
-  const top = (kml.lines[0]?.folder || kml.points[0]?.folder || "").split(" / ")[0];
-  if (top) base = top.replace(/\.dxf$/i, "").replace(/[-_ ]?奥维$/, "").trim() || base;
-  const st = a.stations, cands = a.candidates;
+// input：KML 文字，或已经整理好的 { lines, points }（CAD 图）
+// done：同一个文件里已经导入过的线；一个文件里有好几段路时，存完一段接着导下一段
+function importKML(input, base, done = new Set(), source = "KML 文件", a0 = null, taken = new Set()) {
+  const kml = typeof input === "string" ? parseKML(input) : input;
+  const a = a0 || analyzeKML(kml);
+  if (typeof input === "string" && !done.size) {
+    // 默认名称：用最外层文件夹名（奥维导出时就是路段名），去掉 .dxf、-奥维 之类的后缀
+    const top = (kml.lines[0]?.folder || kml.points[0]?.folder || "").split(" / ")[0];
+    if (top) base = top.replace(/\.dxf$/i, "").replace(/[-_ ]?奥维$/, "").trim() || base;
+  }
+  const st = a.stations, cands = a.candidates.filter((c) => !done.has(c.id));
+  // 某条线 15 米内有哪些桩号点（序号）
+  const cacheIdx = new Map();
+  const nearIdx = (c) => {
+    if (!c) return [];
+    if (!cacheIdx.has(c.id)) {
+      const Lc = cumLen(c.pts);
+      cacheIdx.set(c.id, st.map((p, k) => (project(c.pts, Lc, p.e, p.n).d <= 15 ? k : -1)).filter((k) => k >= 0));
+    }
+    return cacheIdx.get(c.id);
+  };
+  // 文件里有几段路：按排名依次看，每条线带来 2 个以上新桩号点就算一段（边线、边沟线不算）
+  let segs = 0;
+  { const cov = new Set();
+    for (const c of a.candidates.slice(0, 10)) {
+      if (!c.hit) continue;
+      const fresh = nearIdx(c).filter((k) => !cov.has(k));
+      if (fresh.length >= 2) { segs++; fresh.forEach((k) => cov.add(k)); }
+    } }
+  let nameTouched = false;
   const chs = st.map((p) => p.ch);
   let color = freshColor();
   const best = cands[0];
-  const mode = best && best.hit >= 0.7 ? "line:" + best.id : st.length >= 2 ? "points" : best ? "line:" + best.id : "";
+  // 一个文件里有好几段路时，桩号点只有一部分在每条线上，这时也优先用线
+  const mode = best && (best.hit >= 0.7 || (segs > 1 && best.hit > 0)) ? "line:" + best.id : st.length >= 2 ? "points" : best ? "line:" + best.id : "";
   if (!mode) throw new Error(T("文件里没有找到可以当作中线的线，也没有桩号点。"));
   const body = openSheet(T("导入路段"), `
     <div class="summary"><dl>
@@ -232,8 +288,11 @@ function importKML(text, base) {
     try {
       const r = previewRoad(data);
       body.querySelector("#imSum").innerHTML = roadSummary(r, data.info.mode === "line" && st.length >= 2 ? `<dt>${T("注意")}</dt><dd>${T("这条线和桩号点对不上，桩号只按起点推算")}</dd>` : "");
+      // 一个文件有几段路时，名称里带上桩号范围，方便区分
+      if (segs > 1 && !nameTouched) body.querySelector("#imName").value = `${base} ${formatCh(r.chMin)}～${formatCh(r.chMax)}`;
     } catch (e) { body.querySelector("#imSum").innerHTML = `<p class="err">${T("这条线无法生成路段。")}</p>`; data = null; }
   };
+  body.querySelector("#imName").addEventListener("input", () => { nameTouched = true; });
   sel.addEventListener("change", rebuild);
   body.querySelector("#imCh0").addEventListener("change", rebuild);
   body.querySelector("#imDir").addEventListener("change", rebuild);
@@ -242,7 +301,25 @@ function importKML(text, base) {
   body.querySelector("#imSave").addEventListener("click", () => {
     if (!data) return;
     if (data.info.mode === "line" && parseCh(body.querySelector("#imCh0").value, true) == null) { toast(T("起点桩号格式不对，例如 K0+000")); return; }
-    saveNew(data, body.querySelector("#imName").value.trim() || base, color, "KML 文件");
+    const v = sel.value, keepSink = sink;
+    saveNew(data, body.querySelector("#imName").value.trim() || base, color, source).then(() => {
+      // 同一个文件里还有带桩号点的线没导入：接着导
+      const used = new Set(done); if (v.startsWith("line:")) used.add(+v.slice(5));
+      // 只提示：同一图层/文件夹里、并且有 2 个以上“还没用过的桩号点”落在线上的线
+      // （路边线、边沟线也会经过同样的桩号点，那些不算新的一段）
+      const chosen = a.candidates.find((c) => "line:" + c.id === v);
+      const takenNow = new Set([...taken, ...nearIdx(chosen)]);
+      const rest = a.candidates.filter((c) => !used.has(c.id) && c.folder === chosen?.folder &&
+        nearIdx(c).filter((k) => !takenNow.has(k)).length >= 2);
+      taken = takenNow;
+      if (v.startsWith("line:") && rest.length) {
+        sink = keepSink;
+        const b2 = openSheet(T("还有一段路"), `<p>${T("这个文件里还有 {n} 段带桩号的线没有导入。", { n: rest.length })}</p>
+          <div class="actions"><button class="btn" id="imNo">${T("不用了")}</button><button class="btn primary" id="imNext">${T("继续导入下一段")}</button></div>`);
+        b2.querySelector("#imNo").addEventListener("click", () => { sink = null; closeSheet(); });
+        b2.querySelector("#imNext").addEventListener("click", () => importKML(kml, base, used, source, a, taken));
+      } else sink = null;
+    });
   });
   rebuild();
 }

@@ -248,3 +248,52 @@ body.measuring .toast { bottom: calc(270px + var(--safe-b)); }
 .sum-title { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
 .warn { color: var(--warn); }
 .result.live { border-left-color: var(--stake); }
+
+/* 读数带：附近地标 */
+.near { margin-top: 4px; font-size: 14px; color: #B9BEC3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 拍照按钮：在定位按钮上方 */
+.fab {
+  position: absolute; right: max(14px, env(safe-area-inset-right)); z-index: 800;
+  width: 52px; height: 52px; border-radius: 50%; border: 0; background: #fff; color: var(--ink);
+  box-shadow: 0 2px 8px rgba(0,0,0,.3); display: grid; place-items: center;
+}
+.fab.camera { bottom: 80px; }
+.fab svg { width: 24px; height: 24px; }
+
+.tag { display: inline-block; font-size: 11px; font-weight: 600; line-height: 1; padding: 3px 5px; border-radius: 4px; background: #E7F0FF; color: #1F5FC4; vertical-align: 2px; margin-left: 4px; }
+
+/* 地标 */
+.mark { position: absolute; left: 0; top: 0; }
+.mark i { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border-radius: 50%; background: var(--c); border: 2.5px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.mark span {
+  position: absolute; left: 12px; top: -10px; white-space: nowrap; font-size: 13px; font-weight: 600; color: #fff;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px #000;
+}
+.types { display: flex; flex-wrap: wrap; gap: 8px; }
+.types button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: #fff; border-radius: 18px; padding: 7px 12px; font-size: 14px; }
+.types button i { width: 10px; height: 10px; border-radius: 50%; }
+.types button[aria-checked="true"] { border-color: var(--ink); background: var(--ink); color: #fff; }
+
+.check { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 15px; }
+.check input { width: 20px; height: 20px; }
+.check.big { font-size: 16px; font-weight: 600; }
+.sub { font-size: 15px; margin: 22px 0 6px; }
+.steps { padding-left: 20px; margin: 8px 0; font-size: 14px; }
+.steps li { margin: 4px 0; }
+.steps a { color: var(--gps); word-break: break-all; }
+.link { border: 0; background: none; padding: 0; color: var(--gps); text-decoration: underline; font-size: 13px; }
+.result.ok { border-left-color: var(--ok); }
+.list .btn.small { padding: 7px 12px; font-size: 13px; flex: none; }
+.photo { display: block; width: 100%; max-height: 52vh; object-fit: contain; background: #000; border-radius: 8px; }
+
+/* 简单模式：字更大，底部只留找桩号、路段、更多 */
+body.simple .ch { font-size: clamp(64px, 23vw, 104px); }
+body.simple .off { font-size: 22px; }
+body.simple .off b { font-size: 32px; }
+body.simple .bar { grid-template-columns: repeat(3, 1fr); }
+body.simple .bar [data-sheet=tracks], body.simple .bar [data-sheet=measure] { display: none; }
+body.simple .bar button { font-size: 15px; padding: 9px 0; }
+body.simple .bar button svg { width: 26px; height: 26px; }
+body.simple .fab, body.simple .locate { width: 62px; height: 62px; }
+body.simple .fab.camera { bottom: 92px; }
