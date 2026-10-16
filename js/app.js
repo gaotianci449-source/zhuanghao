@@ -4,7 +4,7 @@ import { parseKML, analyzeKML, parseTable, tableStations } from "./importers.js"
 import { store, askPersist, prefs } from "./store.js";
 import { readKMZ } from "./kmz.js";
 
-const VERSION = "1.1";
+const VERSION = "1.2";
 const COLORS = ["#FFC81E", "#2D7FF9", "#E0312A", "#14A06F", "#B04BE0", "#FF7A1A"];
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -658,7 +658,15 @@ $("fileBackup").addEventListener("change", async (e) => {
 
 /* ---------- 启动 ---------- */
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); S.installEvt = e; });
-if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  // 有新版本接管页面时自动刷新一次，避免继续用旧版
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (hadController && !reloaded) { reloaded = true; location.reload(); }
+  });
+  navigator.serviceWorker.register("sw.js").then((reg) => reg.update()).catch(() => {});
+}
 loadRoads().then(async () => {
   let granted = false;
   try { granted = (await navigator.permissions.query({ name: "geolocation" })).state === "granted"; } catch (e) { granted = prefs.get("gps", false); }
