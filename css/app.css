@@ -77,13 +77,16 @@ button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke
 .leaflet-container { font-family: var(--sans); background: #C9CCC4; }
 .leaflet-control-attribution { font-size: 10px; }
 .ch-label {
-  font-family: var(--num); font-weight: 600; font-size: 14px; line-height: 1;
-  color: #111; background: var(--paint); padding: 2px 4px; border-radius: 2px;
-  white-space: nowrap; position: absolute; left: 7px; top: 0; transform: translateY(-50%);
-  box-shadow: 0 0 0 1px rgba(0,0,0,.35);
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -50%);
+  font-family: var(--num); font-weight: 600; font-size: 14px; line-height: 1; white-space: nowrap;
+  color: #E3221B;
+  text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0 0 3px #fff;
 }
-.ch-label.minor { background: #fff; font-size: 12px; }
-.ch-dot { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: #111; border: 1.5px solid #fff; }
+.ch-label.major { font-size: 16px; }
+.ch-label.e { transform: translate(0, -50%); }
+.ch-label.w { transform: translate(-100%, -50%); }
+.ch-label.n { transform: translate(-50%, -100%); }
+.ch-label.s { transform: translate(-50%, 0); }
 .me-dot { width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--gps); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
 .stake { position: relative; width: 0; height: 0; }
 .stake::before { content: ""; position: absolute; left: -2px; top: -34px; width: 4px; height: 34px; background: repeating-linear-gradient(var(--stake) 0 7px, #fff 7px 14px); box-shadow: 0 0 0 1px rgba(0,0,0,.3); }

@@ -4,7 +4,7 @@ import { parseKML, analyzeKML, parseTable, tableStations } from "./importers.js"
 import { store, askPersist, prefs } from "./store.js";
 import { readKMZ } from "./kmz.js";
 
-const VERSION = "1.0";
+const VERSION = "1.1";
 const COLORS = ["#FFC81E", "#2D7FF9", "#E0312A", "#14A06F", "#B04BE0", "#FF7A1A"];
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -58,40 +58,64 @@ function drawRoads() {
   for (const r of S.roads) {
     if (!r.visible) continue;
     if (!r.ll) r.ll = r.pts.map(([e, n]) => llOf(r, e, n));
-    L.polyline(r.ll, { color: "#111", weight: 7, opacity: 0.55, interactive: false }).addTo(roadLayer);
-    L.polyline(r.ll, { color: r.color, weight: 3.5, opacity: 1, interactive: false }).addTo(roadLayer);
+    L.polyline(r.ll, { color: "#000", weight: 4, opacity: 0.35, interactive: false }).addTo(roadLayer);
+    L.polyline(r.ll, { color: r.color, weight: 2, opacity: 1, interactive: false }).addTo(roadLayer);
   }
   drawLabels();
 }
 
+// 桩号标注：和奥维一样，路边红字（不带 K），放大后每 20 米一道横线
+const tickRenderer = L.canvas({ padding: 0.2 });
 function labelStep(z) {
-  if (z >= 17) return 100;
-  if (z >= 16) return 200;
-  if (z >= 15) return 500;
-  if (z >= 14) return 1000;
-  if (z >= 13) return 2000;
-  if (z >= 11) return 5000;
+  if (z >= 16) return 100;
+  if (z >= 15) return 200;
+  if (z >= 14) return 500;
+  if (z >= 13) return 1000;
+  if (z >= 12) return 2000;
+  if (z >= 10) return 5000;
   return 0;
 }
+const chShort = (ch) => formatCh(ch).replace(/^K/, "");
 function drawLabels() {
   labelLayer.clearLayers();
-  const step = labelStep(map.getZoom());
+  const z = map.getZoom();
+  const step = labelStep(z);
   if (!step) return;
+  const tick = z >= 17 ? 20 : z >= 16 ? 100 : 0;
   const b = map.getBounds().pad(0.1);
-  let count = 0;
+  const mpp = 156543.03 * Math.cos(map.getCenter().lat * Math.PI / 180) / Math.pow(2, z); // 每像素多少米
+  const half = Math.max(5, 7 * mpp);             // 横线半长：至少 5 米（与横断面线宽相当）
+  const gap = tick ? half * 1.6 + 4 * mpp : 9 * mpp; // 标签放在横线外侧
+  let labels = 0, ticks = 0;
   for (const r of S.roads) {
     if (!r.visible) continue;
-    const k0 = Math.ceil(r.chMin / step), k1 = Math.floor(r.chMax / step);
-    if (k1 - k0 > 4000) continue;
-    for (let k = k0; k <= k1 && count < 160; k++) {
-      const ch = k * step;
-      const [e, n] = r.pointAt(ch);
-      const ll = llOf(r, e, n);
+    const st = tick || step;
+    const k0 = Math.ceil(r.chMin / st), k1 = Math.floor(r.chMax / st);
+    if (k1 - k0 > 8000) continue;
+    for (let k = k0; k <= k1; k++) {
+      const ch = k * st;
+      const p = r.at(r.ch2s(ch));
+      const ll = llOf(r, p.e, p.n);
       if (!b.contains(ll)) continue;
-      const major = ch % 1000 === 0;
-      L.marker(ll, { interactive: false, keyboard: false, icon: L.divIcon({ className: "", iconSize: [0, 0],
-        html: `<div class="ch-dot"></div><div class="ch-label${major ? "" : " minor"}">${formatCh(ch)}</div>` }) }).addTo(labelLayer);
-      count++;
+      const nx = -p.uy, ny = p.ux;               // 左侧法线
+      if (tick && ticks < 800) {
+        const big = ch % 100 === 0;
+        const h = big ? half * 1.6 : half;
+        L.polyline([llOf(r, p.e + nx * h, p.n + ny * h), llOf(r, p.e - nx * h, p.n - ny * h)],
+          { renderer: tickRenderer, color: "#fff", weight: big ? 2 : 1.2, opacity: 0.95, interactive: false }).addTo(labelLayer);
+        ticks++;
+      }
+      if (Math.abs(ch / step - Math.round(ch / step)) < 1e-6 && labels < 160) {
+        // 标签放在桩号增大方向的右侧
+        const ll2 = llOf(r, p.e - nx * gap, p.n - ny * gap);
+        const major = ch % 1000 === 0;
+        // 按右侧法线在屏幕上的朝向对齐文字，避免压住中线
+        const rx = -nx, ry = -ny;
+        const side = Math.abs(rx) >= Math.abs(ry) ? (rx >= 0 ? "e" : "w") : (ry >= 0 ? "n" : "s");
+        L.marker(ll2, { interactive: false, keyboard: false, icon: L.divIcon({ className: "", iconSize: [0, 0],
+          html: `<div class="ch-label ${side}${major ? " major" : ""}">${chShort(ch)}</div>` }) }).addTo(labelLayer);
+        labels++;
+      }
     }
   }
 }
