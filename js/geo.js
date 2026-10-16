@@ -64,8 +64,8 @@ export function fromUTM(e, n, crs) {
 // 桩号文字 <-> 米数
 export function formatCh(m, digits = 0) {
   if (!isFinite(m)) return "—";
-  const neg = m < 0;
   const v = Math.abs(m);
+  const neg = m < 0 && parseFloat(v.toFixed(digits)) !== 0; // -0.0001 不显示成 -K0+000
   let km = Math.floor(v / 1000);
   let rest = v - km * 1000;
   let restStr = rest.toFixed(digits);

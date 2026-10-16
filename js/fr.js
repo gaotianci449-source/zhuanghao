@@ -365,4 +365,13 @@ export const FR = {
   "例如 边沟开挖": "ex. fossé",
   "{name} {dir} {d}": "{d} au {dir} de {name}",
   "点一下收起或展开": "Touchez pour réduire ou agrandir",
+  "批量导入": "Import groupé",
+  "这个文件里有 {n} 条路，每条路自动配好中线和桩号。取消勾选不要的，再点导入。": "Ce fichier contient {n} routes, chacune avec son axe et ses PK. Décochez celles à ignorer, puis importez.",
+  "{n} 个桩号点校正，最远偏 {d} 米": "{n} points PK, écart max. {d} m",
+  "{n} 个桩号点连线（没找到对得上的中线）": "{n} points PK reliés (aucun axe correspondant)",
+  "桩号点对不上中线，桩号可能不准": "Les points PK ne correspondent pas à l'axe : PK peu fiables",
+  "颜色（这批路段统一用一种）": "Couleur (la même pour tout le lot)",
+  "导入选中的 {n} 条": "Importer la sélection ({n})",
+  "已加入共享 {n} 条（还没发布）": "{n} ajoutés au partage (non publiés)",
+  "已导入 {n} 条路段": "{n} tronçons importés",
 };

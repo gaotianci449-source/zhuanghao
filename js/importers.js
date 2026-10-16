@@ -52,7 +52,7 @@ export function analyzeKML(kml) {
   const crs = { zone: zoneOf(lon), south: lat < 0 };
   const P = (lo, la) => toUTM(la, lo, crs);
 
-  let stations = kml.points.map((p) => ({ name: p.name, ch: parseCh(p.name), ...xy(P(p.lon, p.lat)) })).filter((p) => p.ch != null);
+  let stations = kml.points.map((p) => ({ name: p.name, ch: stationCh(p.name), ...xy(P(p.lon, p.lat)) })).filter((p) => p.ch != null);
   let plainUsed = false;
   if (stations.length < 2) {
     const plain = kml.points.map((p) => ({ name: p.name, ch: parseCh(p.name, true), ...xy(P(p.lon, p.lat)) })).filter((p) => p.ch != null);
@@ -71,6 +71,43 @@ export function analyzeKML(kml) {
 }
 
 function xy([e, n]) { return { e, n }; }
+
+// 桩号点的名字：K12+345、0+100-L17（后面带路名）、L22-100（路名-米数）
+export function stationCh(name) {
+  const s = String(name ?? "").trim();
+  let ch = parseCh(s);
+  if (ch != null) return ch;
+  let m = s.match(/(?:^|[^\d.])[Kk]?(\d{1,4})\+(\d{1,3}(?:\.\d+)?)(?![\d.])/);
+  if (m) return parseInt(m[1], 10) * 1000 + parseFloat(m[2]);
+  m = s.match(/^[A-Za-z]{1,4}\d{1,3}[A-Za-z]?\s*[-_ ]\s*(\d+(?:\.\d+)?)$/); // 路名里要有数字，如 L22；避免把 ZDH_41 当成桩号
+  if (m) return parseFloat(m[1]);
+  return null;
+}
+
+// 一个文件里有好几条路（奥维按路分文件夹导出）：按“中线/桩号点所在文件夹的上一级”分组
+const TYPE_DIR = /^(axes?|zdh|dmx|zx|cl|中线|桩号|桩号点|中桩)$/i;
+export function roadName(path) {
+  const parts = path.split(" / ").filter(Boolean);
+  let i = parts.length - 1;
+  while (i > 0 && TYPE_DIR.test(parts[i])) i--;
+  let n = parts[i] || "";
+  n = n.replace(/\.dxf$/i, "").replace(/[-_ ]?奥维$/, "").replace(/施工用$/, "").trim();
+  return n || parts[i] || "";
+}
+export function splitRoads(kml) {
+  const key = (folder) => folder.split(" / ").slice(0, -1).join(" / ") || folder;
+  const groups = new Map();
+  const g = (k) => { if (!groups.has(k)) groups.set(k, { key: k, lines: [], points: [] }); return groups.get(k); };
+  for (const l of kml.lines) g(key(l.folder)).lines.push(l);
+  for (const p of kml.points) g(key(p.folder)).points.push(p);
+  const out = [];
+  for (const gr of groups.values()) {
+    const st = gr.points.filter((p) => stationCh(p.name) != null);
+    if (st.length < 2 || !gr.lines.length) continue;
+    out.push({ ...gr, name: roadName(gr.key) });
+  }
+  return out;
+}
 
 // 坐标文件：按行拆分，自动识别分隔符和各列含义。input 可以是文字，也可以是 Excel 读出来的行
 export function splitText(text) {

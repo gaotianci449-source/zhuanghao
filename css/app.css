@@ -310,3 +310,13 @@ body.simple .bar button { font-size: 15px; padding: 9px 0; }
 body.simple .bar button svg { width: 26px; height: 26px; }
 body.simple .fab, body.simple .locate { width: 62px; height: 62px; }
 body.simple .fab.camera { bottom: 92px; }
+
+/* 地图上的路名 */
+.road-name {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); white-space: nowrap;
+  font-size: 12px; font-weight: 700; line-height: 1; padding: 3px 6px; border-radius: 4px;
+  background: rgba(30,33,36,.85); color: #fff; border-left: 4px solid var(--c);
+}
+.list.batch li { padding: 8px 12px; }
+.list.batch .check { margin: 0; align-items: flex-start; }
+.list.batch .check input { margin-top: 3px; flex: none; }

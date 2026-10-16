@@ -2,7 +2,7 @@
 // 共享路段由管理员发布，大家只能显示/隐藏，不能改
 import { fromUTM, formatCh, parseCh } from "./geo.js";
 import { Road, buildRoad, cumLen, project } from "./road.js";
-import { parseKML, analyzeKML, parseTable, tableStations } from "./importers.js";
+import { parseKML, analyzeKML, parseTable, tableStations, splitRoads } from "./importers.js";
 import { store, askPersist, prefs, newId } from "./store.js";
 import { isZip, openZip, readKMZ } from "./zip.js";
 import { readXlsx } from "./xlsx.js";
@@ -221,6 +221,11 @@ const freshColor = () => nextColor(S.roads.map((r) => r.color));
 // done：同一个文件里已经导入过的线；一个文件里有好几段路时，存完一段接着导下一段
 function importKML(input, base, done = new Set(), source = "KML 文件", a0 = null, taken = new Set()) {
   const kml = typeof input === "string" ? parseKML(input) : input;
+  // 一个文件里有好几条路（每条路一个文件夹，各有中线和桩号点）：走批量导入
+  if (!done.size && !a0) {
+    const groups = splitRoads(kml);
+    if (groups.length >= 2) { importBatch(groups, base, source); return; }
+  }
   const a = a0 || analyzeKML(kml);
   if (typeof input === "string" && !done.size) {
     // 默认名称：用最外层文件夹名（奥维导出时就是路段名），去掉 .dxf、-奥维 之类的后缀
@@ -400,4 +405,69 @@ function importTable(input, base, kind) {
     saveNew(data, body.querySelector("#tbNameIn").value.trim() || base, color, sheets ? "Excel 表格" : "坐标文件");
   });
   rebuild();
+}
+
+/* 批量导入：一个文件里的多条路一次导完，统一一种颜色 */
+function importBatch(groups, base, source) {
+  const items = [];
+  for (const g of groups) {
+    try {
+      const a = analyzeKML({ lines: g.lines, points: g.points });
+      const best = a.candidates[0];
+      const useLine = best && best.hit >= 0.5;
+      const data = buildRoad({ name: "", crs: a.crs, line: useLine ? best.pts : null, stations: a.stations, startCh: 0 });
+      const r = new Road(data);
+      items.push({ name: g.name, data, r, ok: data.info.mode !== "line" });
+    } catch (e) { /* 这一条读不出来，跳过 */ }
+  }
+  if (!items.length) throw new Error(T("文件里没有找到可以当作中线的线，也没有桩号点。"));
+  // 重名的加上序号
+  const seen = {};
+  for (const it of items) { seen[it.name] = (seen[it.name] || 0) + 1; if (seen[it.name] > 1) it.name += ` (${seen[it.name]})`; }
+  let color = freshColor();
+  const quality = (it) => {
+    const i = it.data.info;
+    if (i.mode === "line+points") return T("{n} 个桩号点校正，最远偏 {d} 米", { n: i.used, d: i.maxOff.toFixed(1) });
+    if (i.mode === "points") return T("{n} 个桩号点连线（没找到对得上的中线）", { n: i.used });
+    return T("桩号点对不上中线，桩号可能不准");
+  };
+  const body = openSheet(T("批量导入"), `
+    <p class="note">${T("这个文件里有 {n} 条路，每条路自动配好中线和桩号。取消勾选不要的，再点导入。", { n: items.length })}</p>
+    <ul class="list batch">${items.map((it, k) => `
+      <li><label class="check"><input type="checkbox" data-k="${k}" ${it.ok ? "checked" : ""}>
+        <span class="meta"><b>${esc(it.name)}</b><small>${rangeText(it.r)} · ${kmText(it.r.length)}<br>${quality(it)}</small></span></label></li>`).join("")}</ul>
+    <div class="field"><span>${T("颜色（这批路段统一用一种）")}</span>${colorPicker(color)}</div>
+    <div class="actions"><button class="btn" id="baCancel">${T("取消")}</button><button class="btn primary" id="baGo"></button></div>`,
+  { onClose: () => previewLayer.clearLayers() });
+  const draw = () => {
+    previewLayer.clearLayers();
+    const all = [];
+    body.querySelectorAll("[data-k]").forEach((cb) => {
+      if (!cb.checked) return;
+      const r = items[+cb.dataset.k].r;
+      const ll = r.pts.map(([e, n]) => fromUTM(e, n, r.crs)); all.push(...ll);
+      L.polyline(ll, { color, weight: 4, interactive: false }).addTo(previewLayer);
+    });
+    const n = all.length ? body.querySelectorAll("[data-k]:checked").length : 0;
+    body.querySelector("#baGo").textContent = T("导入选中的 {n} 条", { n });
+    body.querySelector("#baGo").disabled = !n;
+    if (all.length) map.fitBounds(L.latLngBounds(all), { padding: [20, 20] });
+  };
+  body.querySelectorAll("[data-k]").forEach((cb) => cb.addEventListener("change", draw));
+  bindColors(body, (c) => { color = c; draw(); });
+  body.querySelector("#baCancel").addEventListener("click", closeSheet);
+  body.querySelector("#baGo").addEventListener("click", async (e) => {
+    e.currentTarget.disabled = true;
+    const pick = [...body.querySelectorAll("[data-k]:checked")].map((cb) => items[+cb.dataset.k]);
+    const now = Date.now();
+    for (const [i, it] of pick.entries()) {
+      const obj = { ...it.data, id: newId(), name: it.name, color, visible: true, order: now + i, created: new Date().toISOString(), source };
+      if (sink) await sink(obj); else await store.put(obj);
+    }
+    const shared = !!sink; sink = null;
+    previewLayer.clearLayers();
+    await askPersist(); await loadRoads(); closeSheet();
+    toast(shared ? T("已加入共享 {n} 条（还没发布）", { n: pick.length }) : T("已导入 {n} 条路段", { n: pick.length }));
+  });
+  draw();
 }

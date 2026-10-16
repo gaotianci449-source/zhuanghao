@@ -85,6 +85,25 @@ export function drawLabels() {
   const z = map.getZoom();
   const step = labelStep(z);
   if (!step) return;
+  // 路名：标在每条路的中间，同一种颜色的路挤在一起时也分得清
+  // 标签互相压住时只留先放的那个（路名优先，其次是桩号）
+  const placed = [];
+  const free = (ll, w, h) => {
+    const pt = map.latLngToContainerPoint(ll);
+    if (placed.some((q) => Math.abs(q.x - pt.x) < (q.w + w) / 2 && Math.abs(q.y - pt.y) < (q.h + h) / 2)) return false;
+    placed.push({ x: pt.x, y: pt.y, w, h });
+    return true;
+  };
+  if (z >= 14) {
+    const bb = map.getBounds();
+    for (const r of S.roads) {
+      if (!r.visible) continue;
+      const p = r.at(r.length / 2), ll = llOf(r, p.e, p.n);
+      if (!bb.contains(ll) || !free(ll, r.name.length * 8 + 20, 22)) continue;
+      L.marker(ll, { interactive: false, keyboard: false, zIndexOffset: 500, icon: L.divIcon({ className: "", iconSize: [0, 0],
+        html: `<div class="road-name" style="--c:${r.color}">${r.name.replace(/[&<>"]/g, "")}</div>` }) }).addTo(labelLayer);
+    }
+  }
   const tick = z >= 17 ? 20 : z >= 16 ? 100 : 0;
   const b = map.getBounds().pad(0.1);
   const mpp = 156543.03 * Math.cos(map.getCenter().lat * Math.PI / 180) / Math.pow(2, z); // 每像素多少米
@@ -117,6 +136,11 @@ export function drawLabels() {
         const major = ch % 1000 === 0;
         const rx = -nx, ry = -ny;
         const side = Math.abs(rx) >= Math.abs(ry) ? (rx >= 0 ? "e" : "w") : (ry >= 0 ? "n" : "s");
+        // 按文字实际所在的位置（对齐方式不同，中心会偏）检查是否和别的标签重叠
+        const text = chShort(ch), tw = text.length * 8 + 4, th = 18;
+        const c0 = map.latLngToContainerPoint(ll2);
+        const cx = c0.x + (side === "e" ? tw / 2 : side === "w" ? -tw / 2 : 0), cy = c0.y + (side === "n" ? -th / 2 : side === "s" ? th / 2 : 0);
+        if (!free(map.containerPointToLatLng([cx, cy]), tw, th)) continue;
         L.marker(ll2, { interactive: false, keyboard: false, icon: L.divIcon({ className: "", iconSize: [0, 0],
           html: `<div class="ch-label ${side}${major ? " major" : ""}" style="color:${r.color};--halo:${halo}">${chShort(ch)}</div>` }) }).addTo(labelLayer);
         labels++;
