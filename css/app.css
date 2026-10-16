@@ -43,7 +43,7 @@ button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke
 .readout {
   flex: none; position: relative;
   background: var(--asphalt); color: #fff;
-  padding: calc(10px + var(--safe-t)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
+  padding: calc(8px + var(--safe-t)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
 }
 .readout-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .road-chip {
@@ -64,18 +64,29 @@ button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke
 .acc[data-level="poor"]::before { background: var(--stake); }
 .ch {
   font-family: var(--num); font-weight: 600;
-  font-size: clamp(56px, 19vw, 84px); line-height: 1; letter-spacing: 0.5px;
-  color: var(--paint); margin-top: 6px;
+  font-size: clamp(38px, 12vw, 50px); line-height: 1; letter-spacing: 0.5px;
+  color: var(--paint);
   font-variant-numeric: tabular-nums;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ch.dim { color: #6F757B; }
 /* 读数带底边用当前路段的颜色 */
 .readout::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--road, transparent); }
-.ch.small { font-size: clamp(30px, 9vw, 40px); color: #E9EAEA; margin-top: 10px; }
-.off { margin-top: 6px; font-size: 18px; color: #E9EAEA; min-height: 27px; }
-.off b { font-family: var(--num); font-weight: 600; font-size: 26px; color: #fff; margin: 0 2px; font-variant-numeric: tabular-nums; }
-.off .side { display: inline-block; padding: 1px 8px; border-radius: 4px; background: var(--asphalt-2); font-weight: 600; }
+.ch.small { font-size: clamp(22px, 7vw, 28px); color: #E9EAEA; }
+/* 桩号和偏距放在同一行，放不下时偏距自动换到下一行 */
+.readout-main { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; cursor: pointer; -webkit-user-select: none; user-select: none; }
+.off { font-size: 15px; color: #E9EAEA; min-width: 0; }
+.off b { font-family: var(--num); font-weight: 600; font-size: 21px; color: #fff; margin: 0 2px; font-variant-numeric: tabular-nums; }
+.off .side { display: inline-block; padding: 0 6px; border-radius: 4px; background: var(--asphalt-2); font-weight: 600; }
+.top-right { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; min-width: 0; }
+/* 收起：只剩一行桩号 */
+.readout.collapsed { padding-top: calc(4px + var(--safe-t)); padding-bottom: 8px; }
+.readout.collapsed .readout-top { display: none; }
+.readout.collapsed .readout-main { margin-top: 0; }
+.readout.collapsed .ch { font-size: 26px; }
+.readout.collapsed .ch.small { font-size: 18px; }
+.readout.collapsed .off { font-size: 13px; }
+.readout.collapsed .off b { font-size: 16px; }
 
 /* 地图 */
 .stage { flex: 1; min-height: 0; position: relative; display: flex; }
@@ -250,7 +261,7 @@ body.measuring .toast { bottom: calc(270px + var(--safe-b)); }
 .result.live { border-left-color: var(--stake); }
 
 /* 读数带：附近地标 */
-.near { margin-top: 4px; font-size: 14px; color: #B9BEC3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.near { font-size: 12px; color: #B9BEC3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
 
 /* 拍照按钮：在定位按钮上方 */
 .fab {
@@ -288,7 +299,9 @@ body.measuring .toast { bottom: calc(270px + var(--safe-b)); }
 .photo { display: block; width: 100%; max-height: 52vh; object-fit: contain; background: #000; border-radius: 8px; }
 
 /* 简单模式：字更大，底部只留找桩号、路段、更多 */
+body.simple .readout-main { display: block; }
 body.simple .ch { font-size: clamp(64px, 23vw, 104px); }
+body.simple .off { margin-top: 6px; }
 body.simple .off { font-size: 22px; }
 body.simple .off b { font-size: 32px; }
 body.simple .bar { grid-template-columns: repeat(3, 1fr); }

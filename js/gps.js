@@ -129,6 +129,16 @@ export function update() {
     T("离中线 {d}", { d: `<b>${d < 100 ? d.toFixed(1) : Math.round(d)}</b>${T("米")}` });
 }
 
+// 点读数区收起/展开（记住选择）
+function setCollapsed(on) {
+  $("readout").classList.toggle("collapsed", on);
+  $("readoutMain").setAttribute("aria-expanded", on ? "false" : "true");
+  prefs.set("collapsed", on);
+}
+setCollapsed(prefs.get("collapsed", false));
+$("readoutMain").addEventListener("click", () => setCollapsed(!$("readout").classList.contains("collapsed")));
+$("readoutMain").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("readoutMain").click(); } });
+
 hooks.update = update;
 hooks.setFollow = setFollow;
 hooks.startGPS = startGPS;

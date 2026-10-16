@@ -21,11 +21,16 @@
     <button class="road-chip" id="roadChip" type="button" aria-haspopup="dialog">
       <span class="swatch line" id="roadSwatch"></span><span id="roadName" data-t="还没有路段">还没有路段</span><span class="caret" aria-hidden="true"></span>
     </button>
-    <span class="acc" id="acc" data-level="none" data-t="未定位">未定位</span>
+    <div class="top-right">
+      <span class="acc" id="acc" data-level="none" data-t="未定位">未定位</span>
+      <span class="near" id="near" hidden></span>
+    </div>
   </div>
-  <div class="ch" id="ch" aria-live="polite">—</div>
-  <div class="off" id="off" data-t="导入路段后，这里显示你所在的桩号">导入路段后，这里显示你所在的桩号</div>
-  <div class="near" id="near" hidden></div>
+  <!-- 点这一块收起/展开读数区 -->
+  <div class="readout-main" id="readoutMain" role="button" tabindex="0" aria-expanded="true" title="点一下收起或展开" data-t-label="点一下收起或展开">
+    <div class="ch" id="ch" aria-live="polite">—</div>
+    <div class="off" id="off" data-t="导入路段后，这里显示你所在的桩号">导入路段后，这里显示你所在的桩号</div>
+  </div>
 </header>
 
 <div class="stage">

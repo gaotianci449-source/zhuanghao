@@ -364,4 +364,5 @@ export const FR = {
   "加了水印的照片": "Photo avec filigrane",
   "例如 边沟开挖": "ex. fossé",
   "{name} {dir} {d}": "{d} au {dir} de {name}",
+  "点一下收起或展开": "Touchez pour réduire ou agrandir",
 };
