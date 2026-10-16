@@ -4,7 +4,7 @@ import { parseKML, analyzeKML, parseTable, tableStations } from "./importers.js"
 import { store, askPersist, prefs } from "./store.js";
 import { readKMZ } from "./kmz.js";
 
-const VERSION = "1.2";
+const VERSION = "1.3";
 const COLORS = ["#FFC81E", "#2D7FF9", "#E0312A", "#14A06F", "#B04BE0", "#FF7A1A"];
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

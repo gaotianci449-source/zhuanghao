@@ -1,5 +1,5 @@
 // 离线缓存：程序文件优先联网取最新的，没网时才用缓存；地图影像不经过这里
-const CACHE = "zhuanghao-v3";
+const CACHE = "zhuanghao-v4";
 const APP = [
   "./", "index.html", "manifest.json", "css/app.css",
   "js/app.js", "js/geo.js", "js/road.js", "js/importers.js", "js/store.js", "js/kmz.js",
