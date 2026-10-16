@@ -1,5 +1,6 @@
 // 读取 KML 与坐标文件（XYZ / CSV / DAT / TXT）
 import { parseCh, toUTM, zoneOf } from "./geo.js";
+import { T } from "./i18n.js";
 import { buildRoad, pickCenterline, cumLen } from "./road.js";
 
 const KML_NS = "http://www.opengis.net/kml/2.2";
@@ -24,7 +25,7 @@ function folderPath(el) {
 // 返回 { lines:[{name, folder, ll:[[lon,lat]...]}], points:[{name, folder, lon, lat}] }
 export function parseKML(text) {
   const doc = new DOMParser().parseFromString(text, "application/xml");
-  if (doc.getElementsByTagName("parsererror").length) throw new Error("这个文件不是有效的 KML。");
+  if (doc.getElementsByTagName("parsererror").length) throw new Error(T("这个文件不是有效的 KML。"));
   const lines = [], points = [];
   for (const pm of doc.getElementsByTagNameNS("*", "Placemark")) {
     const nmEl = [...pm.children].find((c) => c.localName === "name");
@@ -45,7 +46,7 @@ export function parseKML(text) {
 // 从 KML 内容里分析出：候选中线、桩号点
 export function analyzeKML(kml) {
   const all = [...kml.lines.flatMap((l) => l.ll), ...kml.points.map((p) => [p.lon, p.lat])];
-  if (!all.length) throw new Error("文件里没有找到线或点。");
+  if (!all.length) throw new Error(T("文件里没有找到线或点。"));
   const lon = all.reduce((s, c) => s + c[0], 0) / all.length;
   const lat = all.reduce((s, c) => s + c[1], 0) / all.length;
   const crs = { zone: zoneOf(lon), south: lat < 0 };
@@ -71,46 +72,59 @@ export function analyzeKML(kml) {
 
 function xy([e, n]) { return { e, n }; }
 
-// 坐标文件：按行拆分，自动识别分隔符和各列含义
-export function parseTable(text) {
-  const rows = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+// 坐标文件：按行拆分，自动识别分隔符和各列含义。input 可以是文字，也可以是 Excel 读出来的行
+export function splitText(text) {
+  return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
     .map((l) => l.split(/\s*[,\t;，]\s*|\s+/).filter((c) => c !== ""));
-  if (!rows.length) throw new Error("文件是空的。");
+}
+export function parseTable(input) {
+  const rows = (typeof input === "string" ? splitText(input) : input.map((r) => r.map((c) => String(c ?? "").trim())))
+    .filter((r) => r.some((c) => c !== ""));
+  if (!rows.length) throw new Error(T("文件是空的。"));
   const width = Math.max(...rows.map((r) => r.length));
   const isNum = (v) => v != null && /^-?\d+(\.\d+)?$/.test(v);
-  const body = rows.filter((r) => r.some(isNum));
-  const header = rows[0].some(isNum) ? null : rows[0];
+  const body = rows.filter((r) => r.filter(isNum).length >= 2);
+  const first = rows.indexOf(body[0]);
+  // 表头：第一行数据前面那一行（Excel 里表头上面常有标题行）
+  const hr = first > 0 ? rows[first - 1] : null;
+  const header = hr && !hr.some(isNum) ? hr : null;
   const cols = [];
   for (let c = 0; c < width; c++) {
-    const vals = body.map((r) => r[c]);
-    const nums = vals.filter(isNum).map(Number);
+    const vals = body.map((r) => r[c] ?? "");
+    const filled = vals.filter((v) => v !== "");
+    const nums = filled.filter(isNum).map(Number);
     cols.push({
       index: c,
-      title: header ? header[c] || `第${c + 1}列` : `第${c + 1}列`,
-      sample: vals.slice(0, 3).join("  "),
-      numeric: nums.length >= body.length * 0.9,
+      title: header && header[c] ? header[c] : T("第{n}列", { n: c + 1 }),
+      sample: filled.slice(0, 3).join("  "),
+      numeric: nums.length > 0 && nums.length >= body.length * 0.9,
       min: Math.min(...nums), max: Math.max(...nums),
-      chainLike: vals.filter((v) => parseCh(v) != null).length >= body.length * 0.8,
+      chainLike: filled.filter((v) => parseCh(v) != null).length >= Math.max(1, body.length * 0.8),
+      empty: filled.length === 0,
     });
   }
+  const used = cols.filter((c) => !c.empty);
   // 猜测：东坐标 10 万~90 万；北坐标通常更大（几内亚一带约 100 万多）
   const guess = { name: -1, north: -1, east: -1, height: -1 };
-  const chainCol = cols.find((c) => c.chainLike);
-  const textCol = cols.find((c) => !c.numeric);
+  const chainCol = used.find((c) => c.chainLike);
+  const textCol = used.find((c) => !c.numeric);
   guess.name = chainCol ? chainCol.index : textCol ? textCol.index : -1;
-  const numCols = cols.filter((c) => c.numeric && c.index !== guess.name);
+  const numCols = used.filter((c) => c.numeric && c.index !== guess.name);
   const eastC = numCols.filter((c) => c.min >= 100000 && c.max <= 900000);
   const northC = numCols.filter((c) => c.min >= 0 && c.max > 900000 && c.max < 10000000);
   if (eastC.length === 1 && northC.length >= 1) { guess.east = eastC[0].index; guess.north = northC[0].index; }
   else if (eastC.length >= 2) { guess.north = eastC[0].index; guess.east = eastC[1].index; } // 无法判断时按“先北后东”的测量习惯
   const rest = numCols.filter((c) => c.index !== guess.east && c.index !== guess.north && c.max < 10000);
   if (rest.length) guess.height = rest[rest.length - 1].index;
-  if (guess.name < 0) {
+  if (guess.name < 0 || (textCol && !chainCol && guess.name === textCol.index && !isMonotonic(body.map((r) => parseCh(r[textCol.index], true) ?? NaN)))) {
     // 可能有一列是纯数字桩号（米），挑单调递增且不是坐标的那一列
-    const mono = numCols.find((c) => c.index !== guess.east && c.index !== guess.north && isMonotonic(body.map((r) => Number(r[c.index]))));
+    // 序号列也是递增的，取数值最大的那一列（桩号米数一般远大于序号）
+    const mono = numCols.filter((c) => c.index !== guess.east && c.index !== guess.north && isMonotonic(body.map((r) => Number(r[c.index]))))
+      .sort((a, b) => b.max - a.max)[0];
     if (mono) guess.name = mono.index;
+    if (guess.height === guess.name) { const h = rest.filter((c) => c.index !== guess.name); guess.height = h.length ? h[h.length - 1].index : -1; }
   }
-  return { rows: body, cols, guess, header };
+  return { rows: body, cols: used, guess, header };
 }
 
 function isMonotonic(a) {

@@ -1,0 +1,326 @@
+// 路段：列表、显示/隐藏、锁定、改名改色、导入（KML / KMZ / Excel / 坐标文件）
+import { fromUTM, formatCh, parseCh } from "./geo.js";
+import { Road, buildRoad } from "./road.js";
+import { parseKML, analyzeKML, parseTable, tableStations } from "./importers.js";
+import { store, askPersist, prefs, newId } from "./store.js";
+import { isZip, openZip, readKMZ } from "./zip.js";
+import { readXlsx } from "./xlsx.js";
+import { S, hooks } from "./state.js";
+import { map, llOf, previewLayer } from "./map.js";
+import { $, esc, toast, openSheet, closeSheet, colorPicker, bindColors, confirmTwice, nextColor, ICON } from "./ui.js";
+import { restoreData } from "./backup.js";
+import { T } from "./i18n.js";
+
+export async function loadRoads() {
+  const raw = await store.all();
+  S.roads = raw.map((d) => new Road(d));
+  if (S.lock && !S.roads.some((r) => r.id === S.lock)) { S.lock = null; prefs.set("lock", null); }
+  hooks.drawRoads();
+  hooks.update();
+}
+
+export function plainRoad(r) {
+  return { id: r.id, name: r.name, color: r.color, visible: r.visible, crs: r.crs, pts: r.pts, cal: r.cal, info: r.info, order: r.order, created: r.created, source: r.source };
+}
+const saveRoad = (r) => store.put(plainRoad(r));
+const rangeText = (r) => `<span class="num">${formatCh(r.chMin)}</span> ～ <span class="num">${formatCh(r.chMax)}</span>`;
+const kmText = (m, d = 2) => (m / 1000).toFixed(d) + " " + T("公里");
+
+/* 点顶部路段名：图例 + 显示/隐藏 + 自动/锁定 */
+export function sheetLegend() {
+  if (!S.roads.length) { sheetRoads(); return; }
+  const body = openSheet(T("路段图例"), `
+    <p class="note">${T("点路段名可以锁定它：在路段交叉的地方，只按这一条算桩号。点眼睛显示或隐藏。")}</p>
+    <div class="list legend" role="radiogroup">
+      <div class="lg-row"><button class="choice" role="radio" data-id="" aria-checked="${!S.lock}"><span class="swatch auto"></span>${T("自动选最近的路段")}</button></div>
+      ${S.roads.map((r) => `<div class="lg-row" data-id="${r.id}">
+        <button class="choice" role="radio" data-id="${r.id}" aria-checked="${S.lock === r.id}"><span class="swatch line" style="background:${r.color}"></span><span class="meta"><b>${esc(r.name)}</b><small>${rangeText(r)}</small></span></button>
+        <button class="icon-btn" data-act="toggle" aria-pressed="${r.visible}" aria-label="${T("显示或隐藏")} ${esc(r.name)}">${ICON.eye}</button>
+      </div>`).join("")}
+    </div>
+    <div class="actions"><button class="btn" id="lgManage">${T("管理路段")}</button></div>`);
+  body.querySelectorAll(".choice").forEach((b) => b.addEventListener("click", async () => {
+    S.lock = b.dataset.id || null; prefs.set("lock", S.lock);
+    const r = S.roads.find((x) => x.id === S.lock);
+    if (r && !r.visible) { r.visible = true; await saveRoad(r); hooks.drawRoads(); }
+    closeSheet(); hooks.update();
+  }));
+  body.querySelectorAll("[data-act=toggle]").forEach((btn) => btn.addEventListener("click", async () => {
+    const r = S.roads.find((x) => x.id === btn.closest("[data-id]").dataset.id);
+    r.visible = !r.visible; await saveRoad(r);
+    btn.setAttribute("aria-pressed", r.visible);
+    hooks.drawRoads(); hooks.update();
+  }));
+  body.querySelector("#lgManage").addEventListener("click", sheetRoads);
+}
+
+/* 底部“路段”：导入、改名、改色、删除 */
+export function sheetRoads() {
+  const body = openSheet(T("路段"), `
+    ${S.roads.length ? `<ul class="list">${S.roads.map((r) => `
+      <li data-id="${r.id}">
+        <span class="swatch line" style="background:${r.color}"></span>
+        <div class="meta"><b>${esc(r.name)}</b><small>${rangeText(r)} · ${kmText(r.length)}</small></div>
+        <button class="icon-btn" data-act="zoom" aria-label="${T("在地图上查看")} ${esc(r.name)}">${ICON.zoom}</button>
+        <button class="icon-btn" data-act="toggle" aria-pressed="${r.visible}" aria-label="${T("显示或隐藏")} ${esc(r.name)}">${ICON.eye}</button>
+        <button class="icon-btn" data-act="edit" aria-label="${T("修改")} ${esc(r.name)}">${ICON.edit}</button>
+      </li>`).join("")}</ul>`
+      : `<p class="empty">${T("还没有路段。导入测量组的 KML（从奥维导出）、Excel 表格或坐标文件（XYZ / CSV / DAT），就能显示桩号。")}</p>`}
+    <div class="actions"><button class="btn primary" id="btnImport">${T("导入路段")}</button></div>
+    <p class="note">${T("支持 KML、KMZ、Excel（.xlsx），以及每行“桩号、北坐标、东坐标”的坐标文件。数据只保存在这台手机里。")}</p>`);
+  body.querySelector("#btnImport").addEventListener("click", () => $("fileRoad").click());
+  body.querySelectorAll("li[data-id]").forEach((li) => {
+    const r = S.roads.find((x) => x.id === li.dataset.id);
+    li.querySelectorAll("[data-act]").forEach((btn) => btn.addEventListener("click", async () => {
+      const act = btn.dataset.act;
+      if (act === "zoom") { closeSheet(); hooks.setFollow(false); map.fitBounds(L.latLngBounds(r.ll || r.pts.map(([e, n]) => llOf(r, e, n))), { padding: [30, 30] }); }
+      if (act === "toggle") { r.visible = !r.visible; await saveRoad(r); btn.setAttribute("aria-pressed", r.visible); hooks.drawRoads(); hooks.update(); }
+      if (act === "edit") sheetEditRoad(r);
+    }));
+  });
+}
+
+function sheetEditRoad(r) {
+  let color = r.color;
+  const body = openSheet(T("修改路段"), `
+    <label class="field"><span>${T("名称")}</span><input id="edName" value="${esc(r.name)}" maxlength="40"></label>
+    <div class="field"><span>${T("颜色")}</span>${colorPicker(r.color)}</div>
+    <div class="summary"><dl>
+      <dt>${T("桩号范围")}</dt><dd>${rangeText(r)}</dd>
+      <dt>${T("中线长度")}</dt><dd>${kmText(r.length, 3)}</dd>
+      <dt>${T("来源")}</dt><dd>${esc(T(r.source || ""))}</dd>
+    </dl></div>
+    <div class="actions"><button class="btn primary" id="edSave">${T("保存")}</button></div>
+    <div class="actions"><button class="btn danger" id="edDel">${T("删除这条路段")}</button></div>`);
+  bindColors(body, (c) => { color = c; });
+  body.querySelector("#edSave").addEventListener("click", async () => {
+    r.name = body.querySelector("#edName").value.trim() || r.name; r.color = color;
+    await saveRoad(r); hooks.drawRoads(); hooks.update(); sheetRoads(); toast(T("已保存"));
+  });
+  confirmTwice(body.querySelector("#edDel"), T("再点一次，确认删除"), async () => {
+    await store.remove(r.id);
+    if (S.lock === r.id) { S.lock = null; prefs.set("lock", null); }
+    await loadRoads(); sheetRoads(); toast(T("已删除：{name}", { name: r.name }));
+  });
+}
+
+/* ---------- 导入：先看文件头判断是什么文件 ---------- */
+function fail(msg) {
+  openSheet(T("导入路段"), `<p class="err">${esc(msg)}</p><div class="actions"><button class="btn" id="again">${T("换一个文件")}</button></div>`)
+    .querySelector("#again").addEventListener("click", () => $("fileRoad").click());
+}
+const startsWith = (buf, sig) => sig.every((b, i) => buf[i] === b);
+
+$("fileRoad").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try { await importFile(f); } catch (err) { fail(err.message || String(err)); }
+});
+
+export async function importFile(f) {
+  const base = f.name.replace(/\.[^.]+$/, "");
+  const ext = (f.name.split(".").pop() || "").toLowerCase();
+  const buf = new Uint8Array(await f.arrayBuffer());
+  if (!buf.length) throw new Error(T("这个文件是空的。如果是从微信里选的，先在微信里打开文件，点“保存到手机”，再从手机存储里选。"));
+
+  if (isZip(buf)) {
+    const zip = openZip(buf);
+    if (zip.has("xl/workbook.xml")) { importTable(await readXlsx(zip), base, "Excel"); return; }
+    if (zip.names.some((n) => /\.kml$/i.test(n))) { importKML(await readKMZ(zip), base); return; }
+    if (zip.names.some((n) => n.startsWith("word/"))) throw new Error(T("这是 Word 文件，里面的坐标读不出来。请把坐标表复制到 Excel 里保存成 .xlsx，再导入。"));
+    if (zip.names.some((n) => n.startsWith("ppt/"))) throw new Error(T("这是 PPT 文件，不能导入。请导入 KML、Excel 或坐标文件。"));
+    throw new Error(T("这是一个压缩包，里面没有找到 KML 或 Excel 表格。请先解压，再选里面的文件。"));
+  }
+  if (startsWith(buf, [0xd0, 0xcf, 0x11, 0xe0])) throw new Error(T("这是旧版 Excel（.xls）或 Word（.doc）文件，读不了。请在电脑上用 Excel 打开，“另存为” .xlsx 或 CSV，再导入。"));
+  if (startsWith(buf, [0x25, 0x50, 0x44, 0x46])) throw new Error(T("这是 PDF 文件，里面的坐标读不出来。请找测量组要 Excel 坐标表或 KML。"));
+  if (startsWith(buf, [0x89, 0x50, 0x4e, 0x47]) || startsWith(buf, [0xff, 0xd8, 0xff]) || ext === "heic" || ext === "webp")
+    throw new Error(T("这是图片，不能导入。请导入 KML、Excel 或坐标文件。"));
+  if (startsWith(buf, [0x41, 0x43, 0x31, 0x30])) throw new Error(T("这是 CAD 图纸（DWG），不能直接读。请让测量组导出坐标表（Excel / CSV）或 KML。"));
+  if (startsWith(buf, [0x52, 0x61, 0x72, 0x21]) || startsWith(buf, [0x37, 0x7a, 0xbc, 0xaf])) throw new Error(T("这是 RAR / 7z 压缩包，请先解压，再选里面的文件。"));
+  if (ext === "ovobj" || ext === "ovkml" || ext === "ovjsn") throw new Error(T("这是奥维自己的格式，读不了。请在奥维里把路段导出成 KML。"));
+
+  const text = decodeText(buf);
+  const head = text.slice(0, 3000);
+  if (head.includes("\u0000") || (text.match(/�/g) || []).length > 20) throw new Error(T("这个文件不是文字格式，读不了。请导入 KML、Excel 或坐标文件。"));
+  if (/^\s*\{/.test(head) && head.includes('"zhuanghao"')) { await restoreData(JSON.parse(text)); return; }
+  if (ext === "kml" || /<kml[\s>]/i.test(head)) { importKML(text, base); return; }
+  if (/^\s*0\s*\r?\n\s*SECTION/.test(head)) throw new Error(T("这是 CAD 的 DXF 文件，暂时不能直接读。请让测量组导出坐标表（Excel / CSV）或 KML。"));
+  if (/^\s*</.test(head)) throw new Error(T("这个文件是网页或别的 XML 格式，不是 KML。"));
+  importTable(text, base, T("坐标文件"));
+}
+function decodeText(buf) {
+  let t = new TextDecoder("utf-8").decode(buf);
+  if (t.includes("�")) { try { t = new TextDecoder("gbk").decode(buf); } catch (e) { /* 保持 utf-8 */ } }
+  return t.replace(/^﻿/, "");
+}
+
+function previewRoad(data) {
+  previewLayer.clearLayers();
+  const r = new Road(data);
+  const ll = r.pts.map(([e, n]) => fromUTM(e, n, r.crs));
+  L.polyline(ll, { color: "#fff", weight: 8, opacity: 0.8, dashArray: "1 10", lineCap: "round", interactive: false }).addTo(previewLayer);
+  L.polyline(ll, { color: data.color || "#FFC81E", weight: 4, interactive: false }).addTo(previewLayer);
+  map.fitBounds(L.latLngBounds(ll), { padding: [20, 20] });
+  return r;
+}
+
+function roadSummary(r, extra = "") {
+  const i = r.info || {};
+  const how = i.mode === "line+points" ? T("中线 + {n} 个桩号点校正", { n: i.used }) : i.mode === "points" ? T("{n} 个桩号点连线", { n: i.used }) : T("只有中线，按起点桩号推算");
+  return `<div class="summary"><dl>
+    <dt>${T("桩号范围")}</dt><dd>${rangeText(r)}</dd>
+    <dt>${T("中线长度")}</dt><dd>${kmText(r.length, 3)}</dd>
+    <dt>${T("桩号来源")}</dt><dd>${how}${i.mode === "line+points" ? T("，桩号点离中线最远 {d} 米", { d: i.maxOff.toFixed(1) }) : ""}</dd>
+    ${extra}
+  </dl></div>`;
+}
+
+async function saveNew(data, name, color, source) {
+  await store.put({ ...data, id: newId(), name, color, visible: true, order: Date.now(), created: new Date().toISOString(), source });
+  previewLayer.clearLayers();
+  await askPersist();
+  await loadRoads();
+  closeSheet();
+  toast(T("已保存：{name}", { name }));
+}
+const freshColor = () => nextColor(S.roads.map((r) => r.color));
+
+function importKML(text, base) {
+  const kml = parseKML(text);
+  const a = analyzeKML(kml);
+  // 默认名称：用最外层文件夹名（奥维导出时就是路段名），去掉 .dxf、-奥维 之类的后缀
+  const top = (kml.lines[0]?.folder || kml.points[0]?.folder || "").split(" / ")[0];
+  if (top) base = top.replace(/\.dxf$/i, "").replace(/[-_ ]?奥维$/, "").trim() || base;
+  const st = a.stations, cands = a.candidates;
+  const chs = st.map((p) => p.ch);
+  let color = freshColor();
+  const best = cands[0];
+  const mode = best && best.hit >= 0.7 ? "line:" + best.id : st.length >= 2 ? "points" : best ? "line:" + best.id : "";
+  if (!mode) throw new Error(T("文件里没有找到可以当作中线的线，也没有桩号点。"));
+  const body = openSheet(T("导入路段"), `
+    <div class="summary"><dl>
+      <dt>${T("桩号点")}</dt><dd>${st.length ? `${T("{n} 个", { n: st.length })}，<span class="num">${formatCh(Math.min(...chs))}</span> ～ <span class="num">${formatCh(Math.max(...chs))}</span>${a.plainUsed ? T("（点名是米数）") : ""}` : T("没有找到（点名不是桩号格式）")}</dd>
+      <dt>${T("线")}</dt><dd>${T("{n} 条可选", { n: cands.length })}</dd>
+    </dl></div>
+    <label class="field"><span>${T("中线用哪条")}</span><select id="imLine">
+      ${cands.slice(0, 15).map((c) => `<option value="line:${c.id}">${esc(c.name || T("未命名线"))}${c.folder ? "（" + esc(c.folder) + "）" : ""}，${kmText(c.len)}${st.length ? T("，{p}% 桩号点在线上", { p: Math.round(c.hit * 100) }) : ""}</option>`).join("")}
+      ${st.length >= 2 ? `<option value="points">${T("不用线，直接把桩号点连起来")}</option>` : ""}
+    </select></label>
+    <div id="imStart" hidden>
+      <div class="row">
+        <label class="field"><span>${T("起点桩号")}</span><input id="imCh0" class="big" value="K0+000" inputmode="text"></label>
+        <label class="field"><span>${T("方向")}</span><select id="imDir"><option value="f">${T("按画线方向")}</option><option value="r">${T("反过来")}</option></select></label>
+      </div>
+    </div>
+    <div id="imSum"></div>
+    <label class="field"><span>${T("路段名称")}</span><input id="imName" value="${esc(base)}" maxlength="40"></label>
+    <div class="field"><span>${T("颜色")}</span>${colorPicker(color)}</div>
+    <div class="actions"><button class="btn" id="imCancel">${T("取消")}</button><button class="btn primary" id="imSave">${T("保存路段")}</button></div>`,
+  { onClose: () => previewLayer.clearLayers() });
+  const sel = body.querySelector("#imLine"); sel.value = mode;
+  let data = null;
+  const rebuild = () => {
+    const v = sel.value;
+    const line = v.startsWith("line:") ? cands.find((c) => "line:" + c.id === v).pts : null;
+    const ch0 = parseCh(body.querySelector("#imCh0").value, true);
+    const useStations = v === "points" || st.length >= 2;
+    let ln = line;
+    if (ln && body.querySelector("#imDir").value === "r") ln = ln.slice().reverse();
+    data = buildRoad({ name: "", crs: a.crs, line: ln, stations: useStations ? st : [], startCh: ch0 ?? 0 });
+    body.querySelector("#imStart").hidden = data.info.mode !== "line";
+    data.color = color;
+    try {
+      const r = previewRoad(data);
+      body.querySelector("#imSum").innerHTML = roadSummary(r, data.info.mode === "line" && st.length >= 2 ? `<dt>${T("注意")}</dt><dd>${T("这条线和桩号点对不上，桩号只按起点推算")}</dd>` : "");
+    } catch (e) { body.querySelector("#imSum").innerHTML = `<p class="err">${T("这条线无法生成路段。")}</p>`; data = null; }
+  };
+  sel.addEventListener("change", rebuild);
+  body.querySelector("#imCh0").addEventListener("change", rebuild);
+  body.querySelector("#imDir").addEventListener("change", rebuild);
+  bindColors(body, (c) => { color = c; rebuild(); });
+  body.querySelector("#imCancel").addEventListener("click", closeSheet);
+  body.querySelector("#imSave").addEventListener("click", () => {
+    if (!data) return;
+    if (data.info.mode === "line" && parseCh(body.querySelector("#imCh0").value, true) == null) { toast(T("起点桩号格式不对，例如 K0+000")); return; }
+    saveNew(data, body.querySelector("#imName").value.trim() || base, color, "KML 文件");
+  });
+  rebuild();
+}
+
+// 坐标表：input 是文字，或 Excel 的工作表列表 [{name, rows}]
+function importTable(input, base, kind) {
+  const sheets = typeof input === "string" ? null : input.filter((s) => s.rows.length);
+  if (sheets && !sheets.length) throw new Error(T("这个 Excel 文件里所有工作表都是空的。"));
+  const tables = (sheets || [{ name: "", text: input }]).map((s) => {
+    try { return { name: s.name, t: parseTable(s.rows || s.text) }; } catch (e) { return { name: s.name, t: null }; }
+  });
+  const usable = (x) => x.t && x.t.rows.length >= 2 && x.t.cols.filter((c) => c.numeric).length >= 2;
+  let cur = tables.findIndex(usable);
+  if (cur < 0) {
+    throw new Error(sheets
+      ? T("Excel 里没有找到坐标数据。需要有一列桩号、一列北坐标（X）、一列东坐标（Y），每行一个点，至少两行。")
+      : T("文件里没有读到坐标。坐标文件每行要有桩号、北坐标、东坐标，例如：K0+000, 1208345.123, 512345.678"));
+  }
+  let color = freshColor();
+  const crs0 = prefs.get("crs", { zone: 28, south: false });
+  const body = openSheet(sheets ? T("导入 Excel 表格") : T("导入坐标文件"), `
+    ${sheets && sheets.length > 1 ? `<label class="field"><span>${T("工作表")}</span><select id="tbSheet">${tables.map((x, i) => `<option value="${i}" ${i === cur ? "selected" : ""} ${usable(x) ? "" : "disabled"}>${esc(x.name)}${usable(x) ? T("（{n} 行）", { n: x.t.rows.length }) : T("（没有坐标）")}</option>`).join("")}</select></label>` : ""}
+    <div id="tbTable"></div>
+    <label class="field"><span>${T("桩号列")}</span><select id="tbName"></select></label>
+    <div class="row">
+      <label class="field"><span>${T("北坐标（X）")}</span><select id="tbN"></select></label>
+      <label class="field"><span>${T("东坐标（Y）")}</span><select id="tbE"></select></label>
+    </div>
+    <div class="row">
+      <label class="field"><span>${T("UTM 投影带")}</span><input id="tbZone" type="number" min="1" max="60" value="${crs0.zone}" inputmode="numeric"></label>
+      <label class="field"><span>${T("半球")}</span><select id="tbHemi"><option value="n">${T("北半球")}</option><option value="s" ${crs0.south ? "selected" : ""}>${T("南半球")}</option></select></label>
+    </div>
+    <div id="tbSum"></div>
+    <label class="field"><span>${T("路段名称")}</span><input id="tbNameIn" value="${esc(base)}" maxlength="40"></label>
+    <div class="field"><span>${T("颜色")}</span>${colorPicker(color)}</div>
+    <div class="actions"><button class="btn" id="tbCancel">${T("取消")}</button><button class="btn primary" id="tbSave">${T("保存路段")}</button></div>`,
+  { onClose: () => previewLayer.clearLayers() });
+  let data = null, crs = null, t = null;
+  const opts = (sel) => `<option value="-1">${T("（没有）")}</option>` + t.cols.map((c) => `<option value="${c.index}" ${c.index === sel ? "selected" : ""}>${esc(c.title)}：${esc(c.sample)}</option>`).join("");
+  const loadSheet = () => {
+    t = tables[cur].t;
+    body.querySelector("#tbTable").innerHTML = `<div class="preview-table"><table>
+        <tr>${t.cols.map((c) => `<th>${esc(c.title)}</th>`).join("")}</tr>
+        ${t.rows.slice(0, 4).map((r) => `<tr>${t.cols.map((c) => `<td>${esc(r[c.index] ?? "")}</td>`).join("")}</tr>`).join("")}
+      </table></div>
+      <p class="note">${T("共 {n} 行。国内测量习惯里 X 是北坐标、Y 是东坐标，请对照上面的数据确认。", { n: t.rows.length })}</p>`;
+    body.querySelector("#tbName").innerHTML = opts(t.guess.name);
+    body.querySelector("#tbN").innerHTML = opts(t.guess.north);
+    body.querySelector("#tbE").innerHTML = opts(t.guess.east);
+    const sn = tables[cur].name;
+    if (sheets && sheets.length > 1 && sn && !base.includes(sn) && !/^sheet\d*$/i.test(sn)) body.querySelector("#tbNameIn").value = base + " " + sn;
+  };
+  const rebuild = () => {
+    const map_ = { name: +body.querySelector("#tbName").value, north: +body.querySelector("#tbN").value, east: +body.querySelector("#tbE").value };
+    crs = { zone: Math.min(60, Math.max(1, +body.querySelector("#tbZone").value || 28)), south: body.querySelector("#tbHemi").value === "s" };
+    const out = body.querySelector("#tbSum");
+    data = null; previewLayer.clearLayers();
+    if (map_.name < 0 || map_.north < 0 || map_.east < 0) { out.innerHTML = `<p class="err">${T("请选好桩号列和两列坐标。")}</p>`; return; }
+    if (map_.north === map_.east) { out.innerHTML = `<p class="err">${T("北坐标和东坐标选成了同一列。")}</p>`; return; }
+    const st = tableStations(t, map_, crs);
+    if (st.length < 2) { out.innerHTML = `<p class="err">${T("按这样的列对应，读不出桩号和坐标。检查一下桩号列是不是选对了。")}</p>`; return; }
+    const [lat] = fromUTM(st[0].e, st[0].n, crs);
+    if (!isFinite(lat) || Math.abs(lat) > 84) { out.innerHTML = `<p class="err">${T("坐标换算出来不在地球上，可能北、东两列选反了，或者不是 UTM 坐标。")}</p>`; return; }
+    data = buildRoad({ name: "", crs, line: null, stations: st });
+    data.color = color;
+    const r = previewRoad(data);
+    const skipped = t.rows.length - st.length;
+    out.innerHTML = roadSummary(r, `${skipped > 0 ? `<dt>${T("跳过")}</dt><dd>${T("{n} 行读不出桩号或坐标", { n: skipped })}</dd>` : ""}<dt>${T("检查")}</dt><dd>${T("看地图上的线是否落在路上；不对就调换北、东两列")}</dd>`);
+  };
+  loadSheet();
+  body.querySelector("#tbSheet")?.addEventListener("change", (e) => { cur = +e.target.value; loadSheet(); rebuild(); });
+  ["#tbName", "#tbN", "#tbE", "#tbZone", "#tbHemi"].forEach((s) => body.querySelector(s).addEventListener("change", rebuild));
+  bindColors(body, (c) => { color = c; if (data) { data.color = c; previewRoad(data); } });
+  body.querySelector("#tbCancel").addEventListener("click", closeSheet);
+  body.querySelector("#tbSave").addEventListener("click", () => {
+    if (!data) { toast(T("还不能保存，请先把列对应好")); return; }
+    prefs.set("crs", crs);
+    saveNew(data, body.querySelector("#tbNameIn").value.trim() || base, color, sheets ? "Excel 表格" : "坐标文件");
+  });
+  rebuild();
+}

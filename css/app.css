@@ -41,7 +41,7 @@ button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke
 
 /* 读数带 */
 .readout {
-  flex: none;
+  flex: none; position: relative;
   background: var(--asphalt); color: #fff;
   padding: calc(10px + var(--safe-t)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
 }
@@ -53,6 +53,9 @@ button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke
 }
 .road-chip #roadName { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52vw; }
 .swatch { width: 12px; height: 12px; border-radius: 2px; background: #6B7177; flex: none; }
+.swatch.line { width: 18px; height: 5px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.35); }
+.swatch.dash { background-image: linear-gradient(90deg, transparent 55%, rgba(255,255,255,.85) 55%) !important; background-size: 7px 100% !important; }
+.swatch.auto { background: conic-gradient(#FFC81E 0 25%, #2D7FF9 0 50%, #E0312A 0 75%, #14A06F 0) !important; border-radius: 50%; width: 14px; height: 14px; }
 .caret { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #9AA0A6; }
 .acc { font-size: 13px; color: #B9BEC3; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
 .acc::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #6B7177; }
@@ -67,20 +70,24 @@ button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ch.dim { color: #6F757B; }
+/* 读数带底边用当前路段的颜色 */
+.readout::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--road, transparent); }
 .ch.small { font-size: clamp(30px, 9vw, 40px); color: #E9EAEA; margin-top: 10px; }
 .off { margin-top: 6px; font-size: 18px; color: #E9EAEA; min-height: 27px; }
 .off b { font-family: var(--num); font-weight: 600; font-size: 26px; color: #fff; margin: 0 2px; font-variant-numeric: tabular-nums; }
 .off .side { display: inline-block; padding: 1px 8px; border-radius: 4px; background: var(--asphalt-2); font-weight: 600; }
 
 /* 地图 */
-#map { flex: 1; min-height: 0; background: #C9CCC4; }
+.stage { flex: 1; min-height: 0; position: relative; display: flex; }
+#map { flex: 1; min-height: 0; background: #C9CCC4; z-index: 0; }
+body.measuring #map { cursor: crosshair; }
 .leaflet-container { font-family: var(--sans); background: #C9CCC4; }
 .leaflet-control-attribution { font-size: 10px; }
 .ch-label {
   position: absolute; left: 0; top: 0; transform: translate(-50%, -50%);
   font-family: var(--num); font-weight: 600; font-size: 14px; line-height: 1; white-space: nowrap;
-  color: #E3221B;
-  text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0 0 3px #fff;
+  color: #E3221B; --halo: #fff;
+  text-shadow: -1px -1px 0 var(--halo), 1px -1px 0 var(--halo), -1px 1px 0 var(--halo), 1px 1px 0 var(--halo), 0 0 3px var(--halo);
 }
 .ch-label.major { font-size: 16px; }
 .ch-label.e { transform: translate(0, -50%); }
@@ -98,7 +105,7 @@ button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke
 
 /* 定位按钮 */
 .locate {
-  position: fixed; right: max(14px, env(safe-area-inset-right)); bottom: calc(80px + var(--safe-b));
+  position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: 16px;
   z-index: 800; width: 52px; height: 52px; border-radius: 50%; border: 0;
   background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.3);
   display: grid; place-items: center;
@@ -108,13 +115,13 @@ button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke
 
 /* 底部栏 */
 .bar {
-  flex: none; display: grid; grid-template-columns: repeat(3, 1fr);
+  flex: none; display: grid; grid-template-columns: repeat(5, 1fr);
   background: var(--card); border-top: 1px solid var(--line);
   padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + var(--safe-b)) max(8px, env(safe-area-inset-left));
 }
 .bar button {
   border: 0; background: none; display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 6px 0; font-size: 13px; color: var(--ink); border-radius: 8px;
+  padding: 6px 0; font-size: 12px; line-height: 1.25; color: var(--ink); border-radius: 8px; text-align: center; min-width: 0;
 }
 .bar button:active { background: var(--ground); }
 
@@ -160,6 +167,7 @@ button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke
 .list li { display: flex; align-items: center; gap: 10px; padding: 12px; border-top: 1px solid var(--line); }
 .list li:first-child { border-top: 0; }
 .list .swatch { width: 14px; height: 14px; }
+.list .swatch.line { width: 20px; height: 6px; }
 .list .meta { flex: 1; min-width: 0; }
 .list .meta b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list .meta small { color: var(--ink-2); font-size: 13px; }
@@ -195,3 +203,48 @@ button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke
   z-index: 1200; background: var(--asphalt); color: #fff; padding: 10px 16px; border-radius: 10px;
   font-size: 14px; max-width: 90vw; box-shadow: 0 2px 10px rgba(0,0,0,.3);
 }
+body.measuring .toast { bottom: calc(270px + var(--safe-b)); }
+
+/* 记录轨迹条 */
+.recbar {
+  flex: none; display: flex; align-items: center; gap: 12px;
+  background: var(--asphalt); color: #fff; padding: 8px 16px;
+}
+.rec-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--stake); flex: none; animation: blink 1.2s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .rec-dot { animation: none; } }
+.rec-text { flex: 1; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.rec-text b { font-family: var(--num); font-weight: 600; font-size: 24px; color: var(--paint); font-variant-numeric: tabular-nums; }
+.rec-text span { font-family: var(--num); font-weight: 600; font-size: 18px; color: #E9EAEA; font-variant-numeric: tabular-nums; }
+.rec-text small { font-size: 12px; color: #FFB020; }
+.btn.small { width: auto; padding: 8px 16px; font-size: 14px; }
+.recbar .btn { background: var(--stake); color: #fff; border-color: var(--stake); }
+
+/* 测量面板 */
+.tool { flex: none; background: var(--ground); border-top: 1px solid var(--line); padding: 8px max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)); }
+.tool-head { display: flex; align-items: center; gap: 8px; }
+.tool-head .seg { flex: 1; }
+.seg.small button { padding: 7px 4px; }
+.ms-out { min-height: 54px; padding: 6px 2px 2px; }
+.ms-big { display: flex; align-items: baseline; gap: 8px; }
+.ms-big small { color: var(--ink-2); font-size: 13px; }
+.ms-big b { font-family: var(--num); font-weight: 600; font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.hint { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
+.ms-btns { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 6px; margin-top: 6px; }
+.ms-btns .btn { padding: 10px 4px; font-size: 14px; }
+.ms-btns .btn svg { width: 18px; height: 18px; }
+
+/* 图例 */
+.lg-row { display: flex; align-items: center; border-top: 1px solid var(--line); background: #fff; padding-right: 6px; }
+.lg-row:first-child { border-top: 0; border-radius: 10px 10px 0 0; }
+.lg-row:last-child { border-radius: 0 0 10px 10px; }
+.lg-row .choice { border-top: 0; flex: 1; min-width: 0; background: none; }
+.choice .meta { display: flex; flex-direction: column; min-width: 0; }
+.choice .meta b { font-weight: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.choice .meta small { color: var(--ink-2); font-size: 12px; font-weight: 400; }
+.choice .meta small .num { font-family: var(--num); font-weight: 600; font-size: 14px; color: var(--ink); }
+.legend { overflow: hidden; }
+
+.sum-title { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.warn { color: var(--warn); }
+.result.live { border-left-color: var(--stake); }

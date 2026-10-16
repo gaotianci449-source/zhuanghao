@@ -1,3 +1,5 @@
+import { T, lang } from "./i18n.js";
+
 // 坐标换算：WGS84 经纬度 <-> UTM（横轴墨卡托，Krüger 级数，毫米级精度）
 const A = 6378137.0;
 const F = 1 / 298.257223563;
@@ -88,10 +90,52 @@ export function parseCh(text, plain = false) {
 const DIRS = ["北", "东北", "东", "东南", "南", "西南", "西", "西北"];
 export function bearingText(dE, dN) {
   const b = (Math.atan2(dE, dN) * 180 / Math.PI + 360) % 360;
-  return DIRS[Math.round(b / 45) % 8];
+  return T(DIRS[Math.round(b / 45) % 8]);
 }
 
 export function distText(d) {
-  if (d >= 1000) return (d / 1000).toFixed(d >= 10000 ? 1 : 2) + " 公里";
-  return Math.round(d) + " 米";
+  if (d >= 1000) return (d / 1000).toFixed(d >= 10000 ? 1 : 2) + " " + T("公里");
+  return Math.round(d) + " " + T("米");
+}
+
+// 测量用：更精细的长度
+export function lenText(d) {
+  if (d >= 1000) return (d / 1000).toFixed(3) + " " + T("公里");
+  return d.toFixed(1) + " " + T("米");
+}
+
+// 一组经纬度点 [[lat, lon]...] 的长度、闭合周长、面积（换到第一个点所在的 UTM 带里算，再换回地面距离）
+export function measureLL(pts) {
+  if (!pts.length) return { length: 0, perimeter: 0, area: 0, gap: 0 };
+  const crs = { zone: zoneOf(pts[0][1]), south: pts[0][0] < 0 };
+  const xy = pts.map((p) => toUTM(p[0], p[1], crs));
+  let length = 0, area = 0;
+  for (let i = 1; i < xy.length; i++) length += Math.hypot(xy[i][0] - xy[i - 1][0], xy[i][1] - xy[i - 1][1]);
+  const a = xy[0], z = xy[xy.length - 1];
+  let gap = Math.hypot(a[0] - z[0], a[1] - z[1]);
+  for (let i = 0; i < xy.length; i++) {
+    const p = xy[i], q = xy[(i + 1) % xy.length];
+    area += p[0] * q[1] - q[0] * p[1];
+  }
+  // UTM 图上距离要除以投影比例 k，才是地面上的实际距离（离中央经线越远差得越多，这里约万分之三）
+  const ce = xy.reduce((t, p) => t + p[0], 0) / xy.length - 500000;
+  const k = K0 * (1 + (ce * ce) / (2 * 6371000 * 6371000));
+  length /= k; gap /= k;
+  return { length, perimeter: length + gap, area: xy.length >= 3 ? Math.abs(area) / 2 / (k * k) : 0, gap };
+}
+
+// 两个经纬度点之间的距离（米）
+// 用椭球上每度的长度，适合相邻轨迹点这样的短距离
+export function distLL(a, b) {
+  const f = ((a[0] + b[0]) / 2) * Math.PI / 180;
+  const mLat = 111132.92 - 559.82 * Math.cos(2 * f) + 1.175 * Math.cos(4 * f);
+  const mLon = 111412.84 * Math.cos(f) - 93.5 * Math.cos(3 * f);
+  return Math.hypot((b[0] - a[0]) * mLat, (b[1] - a[1]) * mLon);
+}
+
+// 面积：平方米、公顷，中文再加亩
+export function areaText(m2) {
+  const parts = [`${m2 < 100 ? m2.toFixed(1) : Math.round(m2).toLocaleString("en-US").replace(/,/g, " ")} ${T("平方米")}`, `${(m2 / 10000).toFixed(m2 < 10000 ? 4 : 2)} ${T("公顷")}`];
+  if (lang === "zh") parts.push(`${(m2 / 666.6667).toFixed(2)} 亩`);
+  return parts;
 }

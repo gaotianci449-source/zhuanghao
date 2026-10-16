@@ -19,32 +19,60 @@
 <header class="readout" id="readout">
   <div class="readout-top">
     <button class="road-chip" id="roadChip" type="button" aria-haspopup="dialog">
-      <span class="swatch" id="roadSwatch"></span><span id="roadName">还没有路段</span><span class="caret" aria-hidden="true"></span>
+      <span class="swatch line" id="roadSwatch"></span><span id="roadName" data-t="还没有路段">还没有路段</span><span class="caret" aria-hidden="true"></span>
     </button>
-    <span class="acc" id="acc" data-level="none">未定位</span>
+    <span class="acc" id="acc" data-level="none" data-t="未定位">未定位</span>
   </div>
   <div class="ch" id="ch" aria-live="polite">—</div>
-  <div class="off" id="off">导入路段后，这里显示你所在的桩号</div>
+  <div class="off" id="off" data-t="导入路段后，这里显示你所在的桩号">导入路段后，这里显示你所在的桩号</div>
 </header>
 
-<main id="map" aria-label="地图"></main>
+<div class="stage">
+  <main id="map" data-t-label="地图" aria-label="地图"></main>
+  <button class="locate" id="locate" type="button" aria-pressed="false" title="定位并跟随" data-t-label="定位并跟随">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8" fill="none"/></svg>
+  </button>
+</div>
 
-<button class="locate" id="locate" type="button" aria-pressed="false" title="定位并跟随">
-  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8" fill="none"/></svg>
-  <span class="sr">定位</span>
-</button>
+<!-- 记录轨迹时显示 -->
+<div class="recbar" id="recbar" hidden>
+  <span class="rec-dot" aria-hidden="true"></span>
+  <span class="rec-text"><b id="recDist">0 米</b><span id="recTime">0:00</span><small id="recWarn" hidden></small></span>
+  <button type="button" class="btn small" id="recStop" data-t="停止">停止</button>
+</div>
 
-<nav class="bar" aria-label="主菜单">
-  <button type="button" data-sheet="find"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h9l1 2h4v9h-7l-1-2H7"/></svg>找桩号</button>
-  <button type="button" data-sheet="roads"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 5 21M16 3l3 18M12 4v3M12 10v3M12 16v4"/></svg>路段</button>
-  <button type="button" data-sheet="more"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>更多</button>
+<!-- 测量时显示 -->
+<section class="tool" id="tool" hidden aria-labelledby="toolTitle">
+  <div class="tool-head">
+    <div class="seg small" role="radiogroup" id="msMode">
+      <button type="button" role="radio" data-mode="line" aria-checked="true" data-t="量距离">量距离</button>
+      <button type="button" role="radio" data-mode="area" aria-checked="false" data-t="量面积">量面积</button>
+    </div>
+    <button type="button" class="close" id="msExit" data-t-label="退出测量" aria-label="退出测量"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+  <h2 class="sr" id="toolTitle" data-t="测量">测量</h2>
+  <div class="ms-out" id="msOut" aria-live="polite"></div>
+  <div class="ms-btns">
+    <button type="button" class="btn" id="msHere"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg><span data-t="取当前位置">取当前位置</span></button>
+    <button type="button" class="btn" id="msUndo" data-t="撤销">撤销</button>
+    <button type="button" class="btn" id="msClear" data-t="清空">清空</button>
+    <button type="button" class="btn primary" id="msSave" data-t="保存">保存</button>
+  </div>
+</section>
+
+<nav class="bar" data-t-label="主菜单" aria-label="主菜单">
+  <button type="button" data-sheet="find"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h9l1 2h4v9h-7l-1-2H7"/></svg><span data-t="找桩号">找桩号</span></button>
+  <button type="button" data-sheet="roads"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 5 21M16 3l3 18M12 4v3M12 10v3M12 16v4"/></svg><span data-t="路段">路段</span></button>
+  <button type="button" data-sheet="tracks"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6a3 3 0 0 0 0-6h-4a3 3 0 0 1 0-6h6"/></svg><span data-t="轨迹">轨迹</span></button>
+  <button type="button" data-sheet="measure"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 17 14-14 4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></svg><span data-t="测量">测量</span></button>
+  <button type="button" data-sheet="more"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span data-t="更多">更多</span></button>
 </nav>
 
 <div class="scrim" id="scrim" hidden></div>
 <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
   <div class="sheet-head">
     <h2 id="sheetTitle"></h2>
-    <button type="button" class="close" id="sheetClose" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    <button type="button" class="close" id="sheetClose" data-t-label="关闭" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
   </div>
   <div class="sheet-body" id="sheetBody"></div>
 </section>
