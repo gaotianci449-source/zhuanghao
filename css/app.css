@@ -320,3 +320,7 @@ body.simple .fab.camera { bottom: 92px; }
 .list.batch li { padding: 8px 12px; }
 .list.batch .check { margin: 0; align-items: flex-start; }
 .list.batch .check input { margin-top: 3px; flex: none; }
+
+.row .btn.small { flex: none; }
+#mStatus .actions { margin-top: 8px; }
+#mStatus .btn { padding: 8px 12px; }

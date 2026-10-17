@@ -32,23 +32,38 @@ const empty = () => ({ app: "zhuanghao", v: 1, updated: null, roads: [], marks: 
 // net=false 时只读缓存（启动时先显示，不等网络）
 export async function loadShared(net = true) {
   const draft = await meta.get("draft");
-  if (draft) { S.shared = { ...draft, dirty: true }; return S.shared; }
+  if (draft) { S.shared = { ...draft, dirty: true }; S.sharedState = "draft"; return S.shared; }
   const dk = dataKey();
   let data = (await meta.get("shared")) || null;
+  // 这次取数据的结果：ok 新的 / cached 网慢用了上次的 / offline 没网 / badkey 钥匙不对 / none 还没发布 / nokey 没钥匙
+  let state = dk ? (net ? "offline" : "cached") : "nokey";
   if (dk && net) {
     try {
       const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 20000);
       const res = await fetch(DATA + "?t=" + Date.now(), { cache: "no-store", signal: ctl.signal });
       clearTimeout(tm);
-      if (res.ok) {
-        const fresh = await openData(dk, await res.arrayBuffer());
-        if (fresh && fresh.app === "zhuanghao") { data = fresh; await meta.set("shared", fresh); }
+      if (res.status === 404) state = "none";
+      else if (res.ok) {
+        const buf = await res.arrayBuffer();
+        try {
+          const fresh = await openData(dk, buf);
+          if (fresh && fresh.app === "zhuanghao") { data = fresh; await meta.set("shared", fresh); state = res.headers.get("x-zh-cache") ? "cached" : "ok"; }
+        } catch (e) { state = "badkey"; }
       }
-    } catch (e) { /* 没网或钥匙不对：用缓存 */ }
+    } catch (e) { /* 没网：用缓存 */ }
   }
   S.shared = { ...(data || empty()), dirty: false };
+  S.sharedState = state;
   return S.shared;
 }
+
+// 从粘贴的文字里找出钥匙：整条链接（…#k=xxx）或者只有钥匙本身
+export function keyFromText(text) {
+  const t = String(text || "").trim();
+  const m = /[#&?]k=([A-Za-z0-9_-]{40,})/.exec(t) || /^([A-Za-z0-9_-]{40,})$/.exec(t);
+  return m ? m[1] : null;
+}
+export function setDataKey(k) { prefs.set("dk", k); }
 
 // 管理员修改：先存成草稿，发布后清掉
 export async function saveDraft(data) {

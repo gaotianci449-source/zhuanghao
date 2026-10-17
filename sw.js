@@ -1,5 +1,5 @@
 // 离线缓存：程序文件先用缓存（打开快、网差不卡），后台更新；共享数据优先联网；地图影像不经过这里
-const CACHE = "zhuanghao-v9";
+const CACHE = "zhuanghao-v10";
 const APP = [
   "./", "index.html", "manifest.json", "css/app.css",
   "js/app.js", "js/state.js", "js/i18n.js", "js/fr.js", "js/ui.js", "js/map.js", "js/gps.js",
@@ -39,7 +39,9 @@ self.addEventListener("fetch", (e) => {
       const timeout = new Promise((ok) => setTimeout(() => ok(null), 4000));
       try { const res = await Promise.race([net, timeout]); if (res) return res; } catch (err) { /* 没网 */ }
       e.waitUntil(net.catch(() => {}));
-      return hit;
+      // 标记一下这是上次存的，页面上可以提示“网慢，显示的是上次的数据”
+      const h = new Headers(hit.headers); h.set("x-zh-cache", "1");
+      return new Response(hit.body, { status: hit.status, headers: h });
     }
     // 程序文件：有缓存就马上用（网差也不卡），同时在后台更新；新版本由 sw.js 更新后自动刷新
     if (hit) { e.waitUntil(net.catch(() => {})); return hit; }

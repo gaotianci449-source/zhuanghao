@@ -184,9 +184,14 @@ function editShared(r) {
 
 // 普通用户在“更多”里看到的共享状态
 export function sharedStatus() {
-  const sh = S.shared;
-  if (!dataKey()) return T("还没有连上共享数据。请用管理员发的链接打开一次。");
+  const sh = S.shared, st = S.sharedState;
+  if (!dataKey()) return T("还没有连上共享数据。请用管理员发的链接打开一次，或者把链接粘贴到下面。");
+  if (st === "badkey") return T("链接里的钥匙和现在的共享数据对不上，可能是旧链接。请向管理员要最新的链接，粘贴到下面。");
+  if (st === "draft") return T("有修改还没发布，大家还看不到。");
   if (!sh || (!sh.roads.length && !sh.marks.length)) return T("已连上共享数据，管理员还没有发布内容。");
-  return T("共享数据：{n} 条路段，{m} 个地标{t}", { n: sh.roads.length, m: sh.marks.length, t: sh.updated ? T("（{t} 更新）", { t: dateText(sh.updated) }) : "" });
+  const base = T("共享数据：{n} 条路段，{m} 个地标{t}", { n: sh.roads.length, m: sh.marks.length, t: sh.updated ? T("（{t} 更新）", { t: dateText(sh.updated) }) : "" });
+  if (st === "offline") return base + " " + T("（现在没网，显示的是上次下载的）");
+  if (st === "cached") return base + " " + T("（网络慢，显示的是上次下载的）");
+  return base;
 }
 export { closeSheet };

@@ -8,6 +8,7 @@ import { plainRoad } from "./roads.js";
 import { T, lang, setLang } from "./i18n.js";
 import { setRef } from "./map.js";
 import { sheetAdmin, sharedStatus } from "./admin.js";
+import { loadShared, keyFromText, setDataKey, dataKey } from "./shared.js";
 
 export function setSimple(on) {
   prefs.set("simple", on);
@@ -16,7 +17,14 @@ export function setSimple(on) {
 
 export function sheetMore() {
   const body = openSheet(T("更多"), `
-    <div class="result ok"><p>${sharedStatus()}</p></div>
+    <div class="result ok" id="mStatus"><p>${sharedStatus()}</p>
+      <div class="actions"><button class="btn" id="mRefresh">${T("刷新")}</button></div>
+    </div>
+    <div class="field" id="mKeyBox" ${dataKey() && S.sharedState !== "badkey" ? "hidden" : ""}><span>${T("粘贴管理员发的链接")}</span>
+      <div class="row"><input id="mKey" placeholder="https://…#k=…" autocomplete="off"><button class="btn small" id="mKeyGo">${T("连接")}</button></div>
+      <p class="note">${T("在微信里长按链接，选“复制”，再粘贴到这里。")}</p>
+    </div>
+    ${dataKey() && S.sharedState !== "badkey" ? `<p class="note"><button class="link" id="mKeyShow">${T("换一个共享链接")}</button></p>` : ""}
     <label class="check big"><input type="checkbox" id="mSimple" ${prefs.get("simple", false) ? "checked" : ""}> ${T("简单模式：字更大，只留常用按钮")}</label>
     <div class="field"><span>${T("底图")}</span>
       <div class="seg" role="radiogroup">
@@ -53,6 +61,24 @@ export function sheetMore() {
     setLang(b.dataset.lang);
     location.reload(); // 重新载入，所有文字一次换好
   }));
+  body.querySelector("#mRefresh").addEventListener("click", (e) => refresh(e.currentTarget));
+  body.querySelector("#mKeyShow")?.addEventListener("click", (e) => { body.querySelector("#mKeyBox").hidden = false; e.currentTarget.hidden = true; body.querySelector("#mKey").focus(); });
+  body.querySelector("#mKeyGo").addEventListener("click", async (e) => {
+    const k = keyFromText(body.querySelector("#mKey").value);
+    if (!k) { toast(T("这不是共享链接。链接里应该有 #k= 这一段。")); return; }
+    const old = dataKey();
+    setDataKey(k);
+    const btn = e.currentTarget; btn.disabled = true;
+    await loadShared(true); await hooks.loadAll();
+    btn.disabled = false;
+    if (S.sharedState === "badkey") {
+      if (old) { setDataKey(old); await loadShared(true); await hooks.loadAll(); }
+      toast(T("这个链接打不开现在的共享数据，可能是旧链接。")); return;
+    }
+    if (S.sharedState === "offline") toast(T("已记住链接。现在没网，有网后点“刷新”。"));
+    else toast(T("已连上：{n} 条共享路段", { n: S.shared.roads.length }));
+    sheetMore();
+  });
   body.querySelector("#mRef").addEventListener("change", (e) => setRef(e.target.checked));
   body.querySelector("#mSimple").addEventListener("change", (e) => setSimple(e.target.checked));
   body.querySelector("#mAdmin").addEventListener("click", sheetAdmin);
@@ -63,4 +89,25 @@ export function sheetMore() {
     if (!S.installEvt) return;
     S.installEvt.prompt(); await S.installEvt.userChoice; S.installEvt = null; closeSheet();
   });
+}
+
+// 刷新：重新下载共享数据，同时检查程序有没有新版本（有的话会自动换上）
+export async function refresh(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = T("正在刷新…"); }
+  let updating = false;
+  try {
+    const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg) { await reg.update(); updating = !!(reg.installing || reg.waiting); }
+  } catch (e) { /* 没网 */ }
+  await loadShared(true);
+  await hooks.loadAll();
+  const st = S.sharedState;
+  if (updating) toast(T("发现新版本，马上自动更新…"), 5000);
+  else if (st === "draft") toast(T("你有修改还没发布，显示的是你手机上的版本。"));
+  else if (st === "offline") toast(T("没有网络，显示的是上次下载的数据。"));
+  else if (st === "cached") toast(T("网络太慢，显示的是上次下载的数据，等会儿再试。"));
+  else if (st === "nokey") toast(T("程序已是最新。还没有连上共享数据。"));
+  else if (st === "badkey") toast(T("链接里的钥匙对不上，请向管理员要最新的链接。"));
+  else toast(T("已是最新：{n} 条共享路段", { n: S.shared.roads.length }));
+  if (btn && document.body.contains(btn)) sheetMore();
 }
