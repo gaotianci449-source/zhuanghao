@@ -16,6 +16,7 @@ import { loadMarks } from "./marks.js";
 import { setSimple } from "./more.js";
 import "./photo.js";
 import "./heading.js";
+import "./install.js";
 
 applyStatic();
 const gotKey = captureKey();

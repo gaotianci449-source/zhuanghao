@@ -70,6 +70,14 @@
   </div>
 </section>
 
+<!-- 从浏览器打开时提示添加到桌面 -->
+<div class="installbar" id="installBar" hidden>
+  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>
+  <span data-t="添加到桌面，下次一点就开">添加到桌面，下次一点就开</span>
+  <button type="button" class="btn small" id="installGo" data-t="添加">添加</button>
+  <button type="button" class="close" id="installX" data-t-label="不再提示" aria-label="不再提示"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+</div>
+
 <nav class="bar" data-t-label="主菜单" aria-label="主菜单">
   <button type="button" data-sheet="find"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h9l1 2h4v9h-7l-1-2H7"/></svg><span data-t="找桩号">找桩号</span></button>
   <button type="button" data-sheet="roads"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 5 21M16 3l3 18M12 4v3M12 10v3M12 16v4"/></svg><span data-t="路段">路段</span></button>

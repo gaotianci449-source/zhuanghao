@@ -7,6 +7,7 @@ import { exportBackup } from "./backup.js";
 import { plainRoad } from "./roads.js";
 import { T, lang, setLang } from "./i18n.js";
 import { setRef } from "./map.js";
+import { addToHome, standalone } from "./install.js";
 import { sheetAdmin, sharedStatus } from "./admin.js";
 import { loadShared, keyFromText, setDataKey, dataKey } from "./shared.js";
 
@@ -48,8 +49,8 @@ export function sheetMore() {
       <div class="row"><button class="btn" id="mExport">${T("导出备份")}</button><button class="btn" id="mImport">${T("恢复备份")}</button></div>
     </div>
     <p class="note">${T("路段、轨迹和测量只保存在这台手机的浏览器里。清理浏览器数据会把它们删掉，换手机前请先导出备份。备份文件也可以发给同事，对方点“恢复备份”就能用同样的路段。")}</p>
-    <button class="btn" id="mInstall" ${S.installEvt ? "" : "hidden"}>${T("添加到手机桌面")}</button>
-    <p class="note">${S.installEvt ? "" : T("想像软件一样从桌面打开：安卓 Chrome 点右上角菜单，选“添加到主屏幕”；苹果 Safari 点分享按钮，选“添加到主屏幕”。")}</p>
+    ${standalone() ? "" : `<button class="btn" id="mInstall">${T("添加到手机桌面")}</button>
+    <p class="note">${T("添加后，桌面上会有一个“桩号”图标，像普通软件一样点开就用。")}</p>`}
     <p class="note">${T("桩号由手机定位换算，误差一般 3～5 米，只用来知道自己在哪，不能用于放样。影像来自 Esri，放大到 17 级以上会变模糊。")} ${T("版本")} ${VERSION}</p>`);
   body.querySelectorAll("[data-base]").forEach((b) => b.addEventListener("click", () => {
     setBase(b.dataset.base);
@@ -85,10 +86,7 @@ export function sheetMore() {
   body.querySelector("#mMax").addEventListener("change", (e) => { S.maxOff = +e.target.value; prefs.set("maxOff", S.maxOff); hooks.update(); });
   body.querySelector("#mExport").addEventListener("click", () => exportBackup(plainRoad));
   body.querySelector("#mImport").addEventListener("click", () => $("fileBackup").click());
-  body.querySelector("#mInstall").addEventListener("click", async () => {
-    if (!S.installEvt) return;
-    S.installEvt.prompt(); await S.installEvt.userChoice; S.installEvt = null; closeSheet();
-  });
+  body.querySelector("#mInstall")?.addEventListener("click", addToHome);
 }
 
 // 刷新：重新下载共享数据，同时检查程序有没有新版本（有的话会自动换上）

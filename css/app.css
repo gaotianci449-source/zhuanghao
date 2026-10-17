@@ -361,3 +361,19 @@ body.simple .compass { width: 88px; height: 88px; }
 .compass .deg { color: var(--paint) !important; font-size: 13px !important; }
 .compass .mark { border-top-color: #6F757B; }
 #cpTarget .tgl { stroke: var(--stake); stroke-width: 2; stroke-dasharray: 2 2; }
+
+/* 添加到桌面提示条 */
+.installbar {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  background: var(--asphalt-2); color: #fff; padding: 6px 8px 6px max(14px, env(safe-area-inset-left));
+  font-size: 14px; font-weight: 600;
+}
+.installbar > svg { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--paint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.installbar span { flex: 1; min-width: 0; }
+.installbar .btn { background: var(--paint); color: var(--ink); border-color: var(--paint); padding: 7px 16px; }
+.installbar .close { color: #C9CCCF; margin: 0; }
+body.measuring .installbar { display: none; }
+.steps.big { font-size: 16px; padding-left: 24px; }
+.steps.big li { margin: 8px 0; }
+.big-tip { font-size: 16px; font-weight: 600; margin: 4px 60px 8px 0; }
+.inapp-tip { position: fixed; top: 6px; right: 14px; z-index: 1002; font-size: 46px; line-height: 1; color: var(--paint); text-shadow: 0 1px 4px rgba(0,0,0,.6); }
