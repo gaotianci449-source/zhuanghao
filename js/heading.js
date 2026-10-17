@@ -72,22 +72,30 @@ setInterval(schedule, 1000); // 指南针停了要及时隐藏扇形
 
 const dirName = (deg) => bearingText(Math.sin((deg * Math.PI) / 180), Math.cos((deg * Math.PI) / 180));
 
+// 角度“展开”成连续的数：359° 之后是 361° 而不是 1°，
+// 否则转动动画会从 359° 倒着转一整圈回到 1°（正北附近表盘自己打转就是这个原因）
+const last = {};
+function unwrap(key, deg) {
+  if (last[key] == null) return (last[key] = deg);
+  const d = ((((deg - last[key]) % 360) + 540) % 360) - 180;
+  return (last[key] += d);
+}
+
 function render() {
   const h = heading();
-  // 定位点的扇形
-  // 定位点：有方向时变成箭头，没有方向时是圆点
-  const arrow = document.querySelector(".me .me-arrow"), dot = document.querySelector(".me .me-dot");
+  // 定位点：蓝点一直在，有方向时蓝点外侧多一个箭头指着手机朝向
+  const arrow = document.querySelector(".me .me-arrow");
   if (arrow) {
-    if (h) arrow.removeAttribute("hidden"); else arrow.setAttribute("hidden", "");
-    dot.hidden = !!h;
-    if (h) arrow.style.transform = `rotate(${h.deg}deg)`;
+    if (h) { arrow.removeAttribute("hidden"); arrow.style.transform = `rotate(${unwrap("arrow", h.deg)}deg)`; }
+    else arrow.setAttribute("hidden", "");
   }
-  // 左上角小指北针：刻度盘反向转，让“北”始终指向真北
+  // 左上角小指北针：刻度盘反向转，让“北”始终指向真北；没有方向时回到北朝上
   const w = $("compass");
-  w.querySelector(".dial").style.transform = `rotate(${h ? -h.deg : 0}deg)`;
-  upright(w.querySelector(".dial"), h ? h.deg : 0);
+  const a = unwrap("dial", h ? -h.deg : 0);
+  w.querySelector(".dial").style.transform = `rotate(${a}deg)`;
+  upright(w.querySelector(".dial"), -a);
   w.classList.toggle("live", !!h);
-  w.querySelector(".deg").textContent = h ? `${Math.round(h.deg)}°` : "";
+  w.querySelector(".deg").textContent = h ? `${Math.round(h.deg) % 360}°` : "";
   if (sheetOpen() && $("sheetBody").querySelector("#cpBig")) renderBig(h);
 }
 
@@ -126,6 +134,7 @@ $("compass").innerHTML = `${DIAL(false)}<span class="mark" aria-hidden="true"></
 $("compass").addEventListener("click", () => { enableCompass(); sheetCompass(); });
 
 function sheetCompass() {
+  last.big = null; // 新打开的大罗盘从当前角度开始，不做转动动画
   openSheet(T("指南针"), `
     <div class="bigcompass"><div class="ring">${DIAL(true)}</div><span class="mark" aria-hidden="true"></span></div>
     <p class="cp-head" id="cpBig"></p>
@@ -138,8 +147,8 @@ function sheetCompass() {
 function renderBig(h) {
   const body = $("sheetBody");
   const ring = body.querySelector(".bigcompass .dial");
-  if (ring) { ring.style.transform = `rotate(${h ? -h.deg : 0}deg)`; upright(ring, h ? h.deg : 0); }
-  body.querySelector("#cpBig").textContent = h ? `${dirName(h.deg)} ${Math.round(h.deg)}°` : T("没有方向数据");
+  if (ring) { const a = unwrap("big", h ? -h.deg : 0); ring.style.transform = `rotate(${a}deg)`; upright(ring, -a); }
+  body.querySelector("#cpBig").textContent = h ? `${dirName(h.deg)} ${Math.round(h.deg) % 360}°` : T("没有方向数据");
   body.querySelector("#cpSrc").textContent = !h
     ? (H.needPerm ? T("需要允许使用指南针：点一下上面的小指北针再试。") : T("这台手机没有指南针，或者还没转动过手机。走动起来后会用 GPS 方向。"))
     : h.src === "gps" ? T("方向来自 GPS（正在移动）") : T("方向来自手机指南针，误差约 ±{d}°", { d: Math.round(h.spread / 2) });

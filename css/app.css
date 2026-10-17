@@ -325,11 +325,11 @@ body.simple .fab.camera { bottom: 92px; }
 #mStatus .actions { margin-top: 8px; }
 #mStatus .btn { padding: 8px 12px; }
 
-/* 定位点：有方向时显示成箭头 */
+/* 定位点：蓝点外侧的方向箭头 */
 .me { position: absolute; left: 0; top: 0; }
 .me .me-dot { position: absolute; left: 0; top: 0; }
-.me .me-arrow { position: absolute; left: -17px; top: -17px; width: 34px; height: 34px; overflow: visible; transition: transform .15s linear; filter: drop-shadow(0 1px 3px rgba(0,0,0,.5)); }
-.me .me-arrow path { fill: var(--gps); stroke: #fff; stroke-width: 3.5; stroke-linejoin: round; }
+.me .me-arrow { position: absolute; left: -24px; top: -24px; width: 48px; height: 48px; overflow: visible; transition: transform .15s linear; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+.me .me-arrow path { fill: var(--gps); stroke: #fff; stroke-width: 2; stroke-linejoin: round; }
 
 /* 左上角小指北针 */
 .compass {
