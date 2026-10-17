@@ -43,13 +43,13 @@ export function sheetFind() {
   setTimeout(() => body.querySelector("#fdText").focus(), 50);
 }
 function clearFind() { S.find = null; findLayer.clearLayers(); findLine = null; }
-function findTarget() {
+export function findTarget() {
   const f = S.find; if (!f) return null;
   const r = S.roads.find((x) => x.id === f.roadId); if (!r) return null;
   const [e, n] = r.pointAt(f.ch, f.off);
   return { r, e, n, ll: fromUTM(e, n, r.crs) };
 }
-function findLabel() {
+export function findLabel() {
   const f = S.find;
   return formatCh(f.ch, f.ch % 1 ? 1 : 0) + (f.off ? " " + T(f.off > 0 ? "左" : "右") + Math.abs(f.off) : "");
 }

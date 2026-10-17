@@ -26,11 +26,12 @@ export function startGPS() {
 
 function onPos(p) {
   const first = !S.me;
-  S.me = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, t: p.timestamp || Date.now() };
+  S.me = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, t: p.timestamp || Date.now(),
+    speed: p.coords.speed, heading: p.coords.heading };
   const ll = [S.me.lat, S.me.lon];
   if (!meMarker) {
     accCircle = L.circle(ll, { radius: S.me.acc, color: "#2D7FF9", weight: 1, fillOpacity: 0.12, interactive: false }).addTo(map);
-    meMarker = L.marker(ll, { interactive: false, keyboard: false, zIndexOffset: 1000, icon: L.divIcon({ className: "", iconSize: [0, 0], html: '<div class="me-dot"></div>' }) }).addTo(map);
+    meMarker = L.marker(ll, { interactive: false, keyboard: false, zIndexOffset: 1000, icon: L.divIcon({ className: "", iconSize: [0, 0], html: '<div class="me"><div class="cone" hidden></div><div class="me-dot"></div></div>' }) }).addTo(map);
   } else { meMarker.setLatLng(ll); accCircle.setLatLng(ll).setRadius(S.me.acc); }
   showAcc();
   if (S.follow || first) map.setView(ll, Math.max(map.getZoom(), first ? 17 : 0), { animate: !first });
@@ -62,6 +63,7 @@ export function setFollow(on) {
 }
 $("locate").addEventListener("click", () => {
   startGPS();
+  hooks.enableCompass(); // 苹果手机要在点按钮时请求指南针权限
   if (S.follow) { setFollow(false); return; }
   setFollow(true);
   if (S.me) map.setView([S.me.lat, S.me.lon], Math.max(map.getZoom(), 17));

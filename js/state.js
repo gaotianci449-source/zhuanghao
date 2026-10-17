@@ -1,7 +1,7 @@
 // 全局状态，以及各模块之间互相调用的入口（避免循环引用）
 import { prefs } from "./store.js";
 
-export const VERSION = "3.4";
+export const VERSION = "3.5";
 
 export const S = {
   roads: [], tracks: [], shapes: [], marks: [],
@@ -18,7 +18,7 @@ export const S = {
 // 由各模块在启动时填上
 export const hooks = {
   update() {}, drawRoads() {}, drawOverlays() {}, setFollow() {}, startGPS() {}, updateWake() {},
-  sheetMarks() {}, nearText: () => "",
+  sheetMarks() {}, nearText: () => "", enableCompass() {},
   onPos: [],       // 每次定位更新时调用
   onMapClick: null // 测量时接管地图点击
 };

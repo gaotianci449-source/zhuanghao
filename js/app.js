@@ -15,6 +15,7 @@ import { captureKey, loadShared } from "./shared.js";
 import { loadMarks } from "./marks.js";
 import { setSimple } from "./more.js";
 import "./photo.js";
+import "./heading.js";
 
 applyStatic();
 const gotKey = captureKey();
