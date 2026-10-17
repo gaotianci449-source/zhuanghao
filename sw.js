@@ -1,5 +1,5 @@
 // 离线缓存：程序文件先用缓存（打开快、网差不卡），后台更新；共享数据优先联网；地图影像不经过这里
-const CACHE = "zhuanghao-v11";
+const CACHE = "zhuanghao-v12";
 const APP = [
   "./", "index.html", "manifest.json", "css/app.css",
   "js/app.js", "js/state.js", "js/i18n.js", "js/fr.js", "js/ui.js", "js/map.js", "js/gps.js",

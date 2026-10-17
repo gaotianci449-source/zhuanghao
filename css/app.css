@@ -325,38 +325,33 @@ body.simple .fab.camera { bottom: 92px; }
 #mStatus .actions { margin-top: 8px; }
 #mStatus .btn { padding: 8px 12px; }
 
-/* 定位点前的方向扇形 */
+/* 定位点：有方向时显示成箭头 */
 .me { position: absolute; left: 0; top: 0; }
-.me .cone {
-  position: absolute; left: -60px; top: -60px; width: 120px; height: 120px; border-radius: 50%;
-  background: conic-gradient(from calc(var(--spread, 40deg) / -2), rgba(45,127,249,.55) 0 var(--spread, 40deg), transparent 0);
-  -webkit-mask-image: radial-gradient(circle, #000 15%, transparent 70%); mask-image: radial-gradient(circle, #000 15%, transparent 70%);
-  transition: transform .15s linear;
-}
 .me .me-dot { position: absolute; left: 0; top: 0; }
+.me .me-arrow { position: absolute; left: -17px; top: -17px; width: 34px; height: 34px; overflow: visible; transition: transform .15s linear; filter: drop-shadow(0 1px 3px rgba(0,0,0,.5)); }
+.me .me-arrow path { fill: var(--gps); stroke: #fff; stroke-width: 3.5; stroke-linejoin: round; }
 
 /* 左上角小指北针 */
 .compass {
   position: absolute; left: max(12px, env(safe-area-inset-left)); top: 12px; z-index: 800;
-  width: 54px; height: 54px; border-radius: 50%; border: 0; padding: 0;
+  width: 64px; height: 64px; border-radius: 50%; border: 0; padding: 0;
   background: rgba(255,255,255,.94); box-shadow: 0 2px 8px rgba(0,0,0,.3);
 }
 .compass .dial, .bigcompass .dial { position: absolute; inset: 0; width: 100%; height: 100%; transition: transform .2s linear; }
 .compass .dial line, .bigcompass .dial line { stroke: #8A9096; stroke-width: 1.5; }
 .compass .dial line.maj, .bigcompass .dial line.maj { stroke: #17191B; stroke-width: 2.5; }
-.compass .dial text, .bigcompass .dial text { font: 700 13px var(--sans); text-anchor: middle; fill: #17191B; }
+.compass .dial text, .bigcompass .dial text { font: 700 17px var(--sans); text-anchor: middle; fill: #17191B; stroke: none; }
 .compass .dial text.n, .bigcompass .dial text.n { fill: var(--stake); }
 .compass .mark, .bigcompass .mark { position: absolute; left: 50%; top: -1px; transform: translateX(-50%); width: 0; height: 0;
   border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 9px solid #8A9096; }
 .compass.live .mark { border-top-color: var(--gps); }
-.compass .dial .needle { fill: var(--stake); }
-.compass .deg { position: absolute; left: 0; right: 0; top: 58%; transform: translateY(-50%); font: 600 13px var(--num); color: var(--ink); text-align: center; }
+.compass .deg { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); font-size: 11px !important; font: 600 13px var(--num); color: var(--ink); text-align: center; }
 .bigcompass { position: relative; width: 230px; height: 230px; margin: 4px auto 0; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 1px var(--line); }
 .bigcompass .ring { position: absolute; inset: 0; }
-.bigcompass .dial text { font-size: 9px; }
+.bigcompass .dial text { font-size: 11px; }
 .bigcompass .mark { top: -6px; border-left-width: 9px; border-right-width: 9px; border-top-width: 14px; border-top-color: var(--gps); }
 #cpTarget path { fill: var(--stake); }
 .cp-head { text-align: center; font: 600 30px var(--num); margin: 10px 0 0; }
 .cp-src { text-align: center; margin-top: 2px; }
-body.simple .compass { width: 62px; height: 62px; }
+body.simple .compass { width: 72px; height: 72px; }
 #cpTarget .tgl { stroke: var(--stake); stroke-width: 2; stroke-dasharray: 2 2; }

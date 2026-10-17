@@ -75,16 +75,19 @@ const dirName = (deg) => bearingText(Math.sin((deg * Math.PI) / 180), Math.cos((
 function render() {
   const h = heading();
   // 定位点的扇形
-  const cone = document.querySelector(".me .cone");
-  if (cone) {
-    cone.hidden = !h;
-    if (h) { cone.style.setProperty("--spread", Math.round(h.spread) + "deg"); cone.style.transform = `rotate(${h.deg}deg)`; }
+  // 定位点：有方向时变成箭头，没有方向时是圆点
+  const arrow = document.querySelector(".me .me-arrow"), dot = document.querySelector(".me .me-dot");
+  if (arrow) {
+    if (h) arrow.removeAttribute("hidden"); else arrow.setAttribute("hidden", "");
+    dot.hidden = !!h;
+    if (h) arrow.style.transform = `rotate(${h.deg}deg)`;
   }
   // 左上角小指北针：刻度盘反向转，让“北”始终指向真北
   const w = $("compass");
   w.querySelector(".dial").style.transform = `rotate(${h ? -h.deg : 0}deg)`;
+  upright(w.querySelector(".dial"), h ? h.deg : 0);
   w.classList.toggle("live", !!h);
-  w.querySelector(".deg").textContent = h ? `${Math.round(h.deg)}°` : T("北");
+  w.querySelector(".deg").textContent = h ? `${Math.round(h.deg)}°` : "";
   if (sheetOpen() && $("sheetBody").querySelector("#cpBig")) renderBig(h);
 }
 
@@ -104,16 +107,22 @@ function relText(rel) {
 const DIAL = (big) => {
   const ticks = [];
   for (let a = 0; a < 360; a += big ? 10 : 30) {
-    const major = a % 90 === 0, len = big ? (major ? 14 : a % 30 === 0 ? 9 : 5) : (major ? 7 : 4);
+    if (!big && a % 90 === 0) continue; // 小表盘四个正方向位置写字，不画刻度
+    const major = a % 90 === 0, len = big ? (major ? 14 : a % 30 === 0 ? 9 : 5) : (major ? 8 : 5);
     ticks.push(`<line x1="50" y1="${3}" x2="50" y2="${3 + len * (big ? 0.5 : 1)}" transform="rotate(${a} 50 50)" class="${major ? "maj" : ""}"/>`);
   }
-  const lab = (a, t, cls = "") => `<text x="50" y="19" transform="rotate(${a} 50 50)" class="${cls}">${t}</text>`;
-  // 小表盘：北方用一个红色指针，中间留给度数
+  // 东南西北四个字：位置随表盘转，字本身保持正着（render 里再转回来）
+  const r = big ? 31 : 29;
+  const lab = (a, t, cls = "") => {
+    const x = 50 + r * Math.sin((a * Math.PI) / 180), y = 50 - r * Math.cos((a * Math.PI) / 180);
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" dy="0.36em" data-x="${x.toFixed(1)}" data-y="${y.toFixed(1)}" class="lab ${cls}">${t}</text>`;
+  };
   return `<svg viewBox="0 0 100 100" class="dial">${ticks.join("")}
-    ${big ? lab(0, T("北"), "n") + lab(90, T("东")) + lab(180, T("南")) + lab(270, T("西")) : '<path class="needle" d="M50 9 L58 30 L50 26 L42 30 Z"/>'}
+    ${lab(0, T("北"), "n") + lab(90, T("东")) + lab(180, T("南")) + lab(270, T("西"))}
     ${big ? '<g id="cpTarget" hidden><path d="M50 25 L58 41 L50 37 L42 41 Z"/><line x1="50" y1="40" x2="50" y2="50" class="tgl"/></g>' : ""}</svg>`;
 };
-$("compass").innerHTML = `${DIAL(false)}<span class="mark" aria-hidden="true"></span><span class="deg">${T("北")}</span>`;
+const upright = (svg, deg) => svg.querySelectorAll("text.lab").forEach((t) => t.setAttribute("transform", `rotate(${deg} ${t.dataset.x} ${t.dataset.y})`));
+$("compass").innerHTML = `${DIAL(false)}<span class="mark" aria-hidden="true"></span><span class="deg"></span>`;
 $("compass").addEventListener("click", () => { enableCompass(); sheetCompass(); });
 
 function sheetCompass() {
@@ -129,7 +138,7 @@ function sheetCompass() {
 function renderBig(h) {
   const body = $("sheetBody");
   const ring = body.querySelector(".bigcompass .dial");
-  if (ring) ring.style.transform = `rotate(${h ? -h.deg : 0}deg)`;
+  if (ring) { ring.style.transform = `rotate(${h ? -h.deg : 0}deg)`; upright(ring, h ? h.deg : 0); }
   body.querySelector("#cpBig").textContent = h ? `${dirName(h.deg)} ${Math.round(h.deg)}°` : T("没有方向数据");
   body.querySelector("#cpSrc").textContent = !h
     ? (H.needPerm ? T("需要允许使用指南针：点一下上面的小指北针再试。") : T("这台手机没有指南针，或者还没转动过手机。走动起来后会用 GPS 方向。"))

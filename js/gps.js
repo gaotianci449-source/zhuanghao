@@ -31,7 +31,7 @@ function onPos(p) {
   const ll = [S.me.lat, S.me.lon];
   if (!meMarker) {
     accCircle = L.circle(ll, { radius: S.me.acc, color: "#2D7FF9", weight: 1, fillOpacity: 0.12, interactive: false }).addTo(map);
-    meMarker = L.marker(ll, { interactive: false, keyboard: false, zIndexOffset: 1000, icon: L.divIcon({ className: "", iconSize: [0, 0], html: '<div class="me"><div class="cone" hidden></div><div class="me-dot"></div></div>' }) }).addTo(map);
+    meMarker = L.marker(ll, { interactive: false, keyboard: false, zIndexOffset: 1000, icon: L.divIcon({ className: "", iconSize: [0, 0], html: '<div class="me"><svg class="me-arrow" viewBox="0 0 40 40" hidden><path d="M20 3 L33 35 L20 27.5 L7 35 Z"/></svg><div class="me-dot"></div></div>' }) }).addTo(map);
   } else { meMarker.setLatLng(ll); accCircle.setLatLng(ll).setRadius(S.me.acc); }
   showAcc();
   if (S.follow || first) map.setView(ll, Math.max(map.getZoom(), first ? 17 : 0), { animate: !first });
