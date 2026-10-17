@@ -1,5 +1,5 @@
 // 地图：底图、路段中线、桩号标注（和奥维一样路边写桩号，放大后每 20 米一道横线），轨迹和测量图形
-import { fromUTM, formatCh } from "./geo.js";
+import { fromUTM, toUTM, formatCh } from "./geo.js";
 import { S, hooks } from "./state.js";
 import { prefs } from "./store.js";
 import { haloOf } from "./ui.js";
@@ -112,9 +112,12 @@ export function drawLabels() {
   let labels = 0, ticks = 0;
   for (const r of S.roads) {
     if (!r.visible) continue;
+    // 只算屏幕里能看到的那一段桩号，长路段、路段多的时候快很多
+    const vis = visibleRange(r, b);
+    if (!vis) continue;
     const halo = haloOf(r.color);
     const st = tick || step;
-    const k0 = Math.ceil(r.chMin / st), k1 = Math.floor(r.chMax / st);
+    const k0 = Math.ceil(vis[0] / st), k1 = Math.floor(vis[1] / st);
     if (k1 - k0 > 8000) continue;
     for (let k = k0; k <= k1; k++) {
       const ch = k * st;
@@ -147,6 +150,26 @@ export function drawLabels() {
       }
     }
   }
+}
+
+// 路段在当前视野里的桩号范围 [ch0, ch1]；完全看不到时返回 null
+function visibleRange(r, bounds) {
+  const sw = toUTM(bounds.getSouth(), bounds.getWest(), r.crs), ne = toUTM(bounds.getNorth(), bounds.getEast(), r.crs);
+  const nw = toUTM(bounds.getNorth(), bounds.getWest(), r.crs), se = toUTM(bounds.getSouth(), bounds.getEast(), r.crs);
+  const e0 = Math.min(sw[0], nw[0]), e1 = Math.max(ne[0], se[0]), n0 = Math.min(sw[1], se[1]), n1 = Math.max(ne[1], nw[1]);
+  const [x0, y0, x1, y1] = r.bbox;
+  if (x1 < e0 || x0 > e1 || y1 < n0 || y0 > n1) return null;
+  let sMin = Infinity, sMax = -Infinity;
+  const P = r.pts, Ls = r.L;
+  for (let i = 1; i < P.length; i++) {
+    const a = P[i - 1], c = P[i];
+    if (Math.max(a[0], c[0]) < e0 || Math.min(a[0], c[0]) > e1 || Math.max(a[1], c[1]) < n0 || Math.min(a[1], c[1]) > n1) continue;
+    if (Ls[i - 1] < sMin) sMin = Ls[i - 1];
+    if (Ls[i] > sMax) sMax = Ls[i];
+  }
+  if (sMin > sMax) return null;
+  const c0 = r.s2ch(sMin), c1 = r.s2ch(sMax);
+  return [Math.min(c0, c1), Math.max(c0, c1)];
 }
 
 // 已保存的轨迹和测量图形
