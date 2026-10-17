@@ -1,7 +1,7 @@
 // 全局状态，以及各模块之间互相调用的入口（避免循环引用）
 import { prefs } from "./store.js";
 
-export const VERSION = "3.7";
+export const VERSION = "3.8";
 
 export const S = {
   roads: [], tracks: [], shapes: [], marks: [],

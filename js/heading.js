@@ -83,11 +83,12 @@ function unwrap(key, deg) {
 
 function render() {
   const h = heading();
-  // 定位点：蓝点一直在，有方向时蓝点外侧多一个箭头指着手机朝向
-  const arrow = document.querySelector(".me .me-arrow");
+  // 定位点：有方向时只显示箭头；没有方向数据时退回蓝点（箭头乱指反而误导）
+  const arrow = document.querySelector(".me .me-arrow"), dot = document.querySelector(".me .me-dot");
   if (arrow) {
     if (h) { arrow.removeAttribute("hidden"); arrow.style.transform = `rotate(${unwrap("arrow", h.deg)}deg)`; }
     else arrow.setAttribute("hidden", "");
+    dot.hidden = !!h;
   }
   // 左上角小指北针：刻度盘反向转，让“北”始终指向真北；没有方向时回到北朝上
   const w = $("compass");

@@ -325,17 +325,17 @@ body.simple .fab.camera { bottom: 92px; }
 #mStatus .actions { margin-top: 8px; }
 #mStatus .btn { padding: 8px 12px; }
 
-/* 定位点：蓝点外侧的方向箭头 */
+/* 定位点：有方向时显示成箭头 */
 .me { position: absolute; left: 0; top: 0; }
 .me .me-dot { position: absolute; left: 0; top: 0; }
-.me .me-arrow { position: absolute; left: -24px; top: -24px; width: 48px; height: 48px; overflow: visible; transition: transform .15s linear; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
-.me .me-arrow path { fill: var(--gps); stroke: #fff; stroke-width: 2; stroke-linejoin: round; }
+.me .me-arrow { position: absolute; left: -13px; top: -13px; width: 26px; height: 26px; overflow: visible; transition: transform .15s linear; filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); }
+.me .me-arrow path { fill: var(--gps); stroke: #fff; stroke-width: 3.5; stroke-linejoin: round; }
 
 /* 左上角小指北针 */
 .compass {
   position: absolute; left: max(12px, env(safe-area-inset-left)); top: 12px; z-index: 800;
-  width: 64px; height: 64px; border-radius: 50%; border: 0; padding: 0;
-  background: rgba(255,255,255,.94); box-shadow: 0 2px 8px rgba(0,0,0,.3);
+  width: 80px; height: 80px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); padding: 0;
+  background: rgba(30,33,36,.92); box-shadow: 0 2px 8px rgba(0,0,0,.3);
 }
 .compass .dial, .bigcompass .dial { position: absolute; inset: 0; width: 100%; height: 100%; transition: transform .2s linear; }
 .compass .dial line, .bigcompass .dial line { stroke: #8A9096; stroke-width: 1.5; }
@@ -353,5 +353,11 @@ body.simple .fab.camera { bottom: 92px; }
 #cpTarget path { fill: var(--stake); }
 .cp-head { text-align: center; font: 600 30px var(--num); margin: 10px 0 0; }
 .cp-src { text-align: center; margin-top: 2px; }
-body.simple .compass { width: 72px; height: 72px; }
+body.simple .compass { width: 88px; height: 88px; }
+.compass .dial line { stroke: #9AA0A6; }
+.compass .dial line.maj { stroke: #fff; }
+.compass .dial text { fill: #fff; }
+.compass .dial text.n { fill: #FF4A3D; }
+.compass .deg { color: var(--paint) !important; font-size: 13px !important; }
+.compass .mark { border-top-color: #6F757B; }
 #cpTarget .tgl { stroke: var(--stake); stroke-width: 2; stroke-dasharray: 2 2; }
